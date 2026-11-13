@@ -1,0 +1,9068 @@
+<html>
+<head>
+<style>
+
+html, body{
+margin: 0;
+padding: 0;
+width: 100%;
+height: 100%;
+overflow: hidden;
+background: black;
+}
+body{
+display: flex;
+justify-content: center;
+align-items: center;
+}
+canvas{
+display: block;
+
+}
+
+</style>
+</head>
+<body>
+<div id="/fps"></div>
+<canvas id="fighting-plane">
+</canvas>
+</body>
+<script>
+const canvas=document.querySelector("canvas");
+const context=canvas.getContext('2d');
+const gameWidth=3000;
+const gameHeight=1600;
+const ground=1520;
+const screenWidth=1920;
+const screenHeight=1080;
+const maxFrames={
+standLightPunch: 12,
+crouchMediumPunch: 28,
+idle: 10
+}
+const camera={
+x: 1440,
+y: 880,
+zoom: 1
+}
+canvas.width=screenWidth;
+canvas.height=screenHeight;
+var landFrames=0;
+akumaHealth=9000
+kenHealth=10000
+var hitstopCount=0
+var maxHitstop=0
+
+function fake(hit){
+
+}
+async function loadAnimation(state, name){
+const sheets=[]
+for(let i=1; ;i++){
+let source=`spriteSheets/${name}/${state}_${i}.png`
+let img=await loadImage(source)
+
+if(img===null){
+break;
+}
+sheets.push(img)
+}
+
+return sheets
+}
+
+function loadImage(source){
+return new Promise((resolve, reject)=>{
+const img=new Image();
+img.onload= async()=>{
+await img.decode()
+resolve(img)
+}
+img.onerror= ()=>{
+
+console.warn(`Sprite not found: ${source}`)
+resolve(null)
+}
+img.src=source;
+})
+}
+
+
+function adjustSize(){
+const aspect=screenWidth/screenHeight;
+
+let displayWidth=window.innerWidth;
+let displayHeight=displayWidth/aspect;
+
+if(displayHeight>window.innerHeight){
+displayHeight=window.innerHeight;
+displayWidth=displayHeight*aspect;
+}
+
+canvas.style.width=`${displayWidth}px`;
+
+canvas.style.height=`${displayHeight}px`;
+}
+window.addEventListener("resize", adjustSize);
+adjustSize();
+var boxView=true;
+window.addEventListener("keypress", (event)=>{
+if(event.key.toLowerCase()=="p"){
+boxView=!boxView;
+console.log(boxView)
+}
+})
+function clamp(value, min, max){
+return Math.max(min, Math.min(max, value))
+}
+
+function attackCollision(fighter1, fighter2){
+let attackers=[]
+let defenders=[]
+let hitConfirmed=[]
+let p1Strike=false
+let p2Strike=false
+let p1Attack=[]
+let p2Attack=[]
+if(fighter1.attack==true){
+attackers.push(fighter1)
+defenders.push(fighter2)
+}
+if(fighter2.attack==true){
+attackers.push(fighter2)
+defenders.push(fighter1)
+}
+
+//ATTACKER LAYER
+for(let i=0; i<attackers.length; i++){
+let hitboxes=attackers[i].attackBox
+
+
+//HITBOX LAYER
+for(let j=0; j<hitboxes.length; j++){
+let hit=hitboxes[j]
+let hitX=hit.realPos.x
+let hitY=hit.realPos.y;
+let hitWidth=hit.width
+let hitHeight=hit.height
+
+
+//DEFENDER LAYER
+for(let k=0; k<defenders.length; k++){
+let hurtboxes=defenders[k].targetBox
+
+
+//HURTBOX LAYER
+
+if(attackers[i] != defenders[k]){
+for(let l=0; l<hurtboxes.length; l++){
+let hurt=hurtboxes[l]
+let hurtX=hurt.realPos.x
+let hurtY=hurt.realPos.y;
+let hurtWidth=hurt.width
+let hurtHeight=hurt.height
+
+//COLLISION CHECK
+if(attackers[i] != defenders[k]){
+if((hitX+hitWidth)>=hurtX && hitX<=(hurtX+hurtWidth) && (hitY+hitHeight)>=hurtY && hitY<=(hurtY+hurtHeight) && attackers[i].framesCurrent>hit.startup && attackers[i].framesCurrent<=(hit.startup+hit.active)){
+let invinc=false
+
+if((hit.air == true && hurt.airIn==true) || (hit.projectile== true && hurt.projectileIn==true)){
+invinc=true
+}
+if(invinc==false && hit.connected==false){
+hitConfirmed.push(attackers[i], defenders[k])
+if(attackers[i]==fighter1){
+p1Strike=true
+p1Attack.push(hit)
+}
+else if(attackers[i]==fighter2){
+p2Strike=true
+p2Attack.push(hit)
+}
+hit.connected=true
+break
+}
+
+
+}
+
+}
+
+//CHECK END
+
+}
+}
+//HURTBOX LAYER END
+
+
+}
+//DEFENDER LAYER END
+
+
+
+}
+//HITBOX LAYER END
+
+
+
+
+}
+//ATTACKER LAYER END
+
+//PROJECTILE VS PLAYER BEHAVIOR
+
+if(fighter1.projectiles.length>0 && attackers.indexOf(fighter1)==-1){
+attackers.push(fighter1)
+defenders.push(fighter2)
+}
+if(fighter2.projectiles.length>0 && attackers.indexOf(fighter2)==-1){
+attackers.push(fighter2)
+defenders.push(fighter1)
+}
+
+//ATTACKER LAYER
+for(let i=0; i<attackers.length; i++){
+let proj=attackers[i].projectiles
+
+//PROJECTILES LAYER
+for(let h=0; h<proj.length; h++){
+
+let hitboxes=proj[h].hitboxes
+
+
+//HITBOX LAYER
+for(let j=0; j<hitboxes.length; j++){
+let hit=hitboxes[j]
+let hitX=hit.realPos.x
+let hitY=hit.realPos.y;
+let hitWidth=hit.width
+let hitHeight=hit.height
+
+
+//DEFENDER LAYER
+for(let k=0; k<defenders.length; k++){
+let hurtboxes=defenders[k].targetBox
+
+
+//HURTBOX LAYER
+
+if(attackers[i] != defenders[k]){
+for(let l=0; l<hurtboxes.length; l++){
+let hurt=hurtboxes[l]
+let hurtX=hurt.realPos.x
+let hurtY=hurt.realPos.y;
+let hurtWidth=hurt.width
+let hurtHeight=hurt.height
+
+//COLLISION CHECK
+if(attackers[i] != defenders[k]){
+if((hitX+hitWidth)>=hurtX && hitX<=(hurtX+hurtWidth) && (hitY+hitHeight)>=hurtY && hitY<=(hurtY+hurtHeight) && proj[h].hitA==true){
+let invinc=false
+
+if((hit.air == true && hurt.airIn==true) || (hit.projectile== true && hurt.projectileIn==true)){
+invinc=true
+}
+if(invinc==false && hit.connected==false){
+hitConfirmed.push(attackers[i], defenders[k])
+if(attackers[i]==fighter1){
+p1Strike=true
+p1Attack.push(hit)
+}
+else if(attackers[i]==fighter2){
+p2Strike=true
+p2Attack.push(hit)
+}
+hit.connected=true
+break
+}
+
+}
+
+}
+
+//CHECK END
+
+}
+}
+//HURTBOX LAYER END
+
+
+}
+//DEFENDER LAYER END
+
+
+
+}
+//HITBOX LAYER END
+
+}
+//PROJECTILES LAYER END
+
+
+}
+//ATTACKER LAYER END
+
+
+
+//PROJECTILE VS PROJECTILE BEHAVIOR
+
+if(fighter1.projectiles.length>0 && attackers.indexOf(fighter1)==-1){
+attackers.push(fighter1)
+defenders.push(fighter2)
+}
+if(fighter2.projectiles.length>0 && attackers.indexOf(fighter2)==-1){
+attackers.push(fighter2)
+defenders.push(fighter1)
+}
+
+//ATTACKER LAYER
+for(let i=0; i<fighter1.projectiles.length; i++){
+let proj1=fighter1.projectiles[i]
+
+//PROJECTILES LAYER
+for(let h=0; h<proj1.hitboxes.length; h++){
+
+let hitboxes=proj1.hitboxes[h]
+
+
+//HITBOX LAYER
+for(let j=0; j<hitboxes.length; j++){
+let hit=hitboxes[j]
+let hitX=hit.realPos.x
+let hitY=hit.realPos.y;
+let hitWidth=hit.width
+let hitHeight=hit.height
+
+
+//DEFENDER LAYER
+for(let k=0; k<fighter2.projectiles.length; k++){
+let proj2=fighter2.projectiles[k]
+
+
+//HURTBOX LAYER
+
+for (let g=0; g<proj2.hitboxes.length; g++){
+let hurtboxes=proj2.hitboxes[g]
+
+for(let l=0; l<hurtboxes.length; l++){
+let hurt=hurtboxes[l]
+let hurtX=hurt.realPos.x
+let hurtY=hurt.realPos.y;
+let hurtWidth=hurt.width
+let hurtHeight=hurt.height
+
+//COLLISION CHECK
+
+if((hitX+hitWidth)>=hurtX && hitX<=(hurtX+hurtWidth) && (hitY+hitHeight)>=hurtY && hitY<=(hurtY+hurtHeight) && proj[h].hitA==true){
+let invinc=false
+hit.connected=true
+hurt.connected=true
+
+
+}
+
+
+
+//CHECK END
+
+}
+}
+//HURTBOX LAYER END
+
+
+}
+//DEFENDER LAYER END
+
+
+
+}
+//HITBOX LAYER END
+
+}
+//PROJECTILES LAYER END
+
+
+}
+//ATTACKER LAYER END
+
+
+
+let hitCounts=[0]
+
+if(p1Strike==true){
+hitProperties(fighter1, fighter2, p1Attack)
+//MULTI BOX ATTACK CONNECT LOOP
+for(let h=0; h<p1Attack.length; h++){
+
+if(p1Attack[h].projectile==false){
+for(let i=0; i<fighter1.attackBox.length; i++){
+if(fighter1.framesCurrent<fighter1.attackBox[i].startup){
+fighter1.attackBox[i].connected=true
+}
+fighter1.cancels=fighter1.attackBox[i].cancels
+console.log(fighter1.cancels)
+break
+}
+}
+}
+//LOOP END
+//MULTI BOX PROJECTILE CONNECT LOOP
+for(let j=0; j<p1Attack.length; j++){
+//CONT HERE
+if(p1Attack[j].projectile==true){
+for(let k=0; k<fighter1.projectiles[fighter1.projectiles.indexOf(p1Attack[j])].hitboxes.length; k++){
+fighter1.projectiles[fighter1.projectiles.indexOf(p1Attack[j])].hitboxes[k].connected==true
+break
+}
+}
+}
+
+
+//LOOP END
+
+}
+
+if(p2Strike==true){
+hitProperties(fighter2, fighter1, p2Attack)
+//MULTI BOX ATTACK CONNECT LOOP
+for(let h=0; h<p2Attack.length; h++){
+
+if(p2Attack[h].projectile==false){
+for(let i=0; i<fighter2.attackBox.length; i++){
+fighter2.attackBox[i].connected==true
+fighter2.cancels=fighter2.attackBox[i].cancels
+break
+}
+}
+}
+//LOOP END
+//MULTI BOX PROJECTILE CONNECT LOOP
+for(let j=0; j<p2Attack.length; j++){
+//CONT HERE
+if(p2Attack[j].projectile==true){
+for(let k=0; k<fighter2.projectiles[fighter2.projectiles.indexOf(p2Attack[j])].hitboxes.length; k++){
+fighter2.projectiles[fighter2.projectiles.indexOf(p2Attack[j])].hitboxes[k].connected==true
+break
+}
+}
+}
+
+
+//LOOP END
+
+}
+
+
+
+
+//FUNCTION END HERE
+}
+//ATTACK DETECTION END
+
+function hitProperties(player1, player2, moves){
+let maxStun=moves[0].stun;
+let totalDam=0;
+let maxPush=moves[0].pushback;
+let property=""
+
+let maxStop=moves[0].hitstop
+for(let i=0; i<moves.length; i++){
+let attackUse=moves[i]
+totalDam+=attackUse.damage
+if(maxStun<attackUse.stun){
+maxStun=attackUse.stun
+}
+if(maxPush<attackUse.pushback){
+maxPush=attackUse.pushback
+}
+if(maxStop<attackUse.hitstop){
+maxStop=attackUse.hitstop
+}
+if(attackUse.projectile == false || property.length==0){
+property=attackUse.prop
+}
+effects.push(new Hitspark({
+position:{
+x: attackUse.realPos.x+attackUse.width,
+y: attackUse.realPos.y+(attackUse.height/2)
+}, 
+sprite: "Hit-Yellow", 
+scale: 4, 
+spriteLength: 16, 
+offset:{
+x: 0,
+y: 0
+}, 
+direction: player2.direction, 
+grid:{
+x: 4, 
+y: 4
+}
+})
+)
+
+
+}
+
+
+let type;
+if(player2.stunned==false){
+if(player2.currentState!="walkBack" && player2.currentState!="blockstun"){
+player2.maxHealth-=totalDam;
+player2.takeHit(maxStun, totalDam, player1.direction*maxPush, property)
+}
+else{
+player2.blockHit(maxStun, player1.direction*maxPush)
+}
+}
+else if(player2.stunned==true && player2.currentState=="blockstun" && player2.currentState!="walkBack"){
+player2.blockHit(maxStun, maxPush)
+}
+else if(player2.stunned==true && player2.currentState=="hitstun"){
+player2.maxHealth-=totalDam;
+player2.takeHit(maxStun, totalDam, player1.direction*maxPush, property)
+}
+player2.attack=false
+player2.stunned=true
+
+//LOOP END
+if(player2.currentState=="blockstun"){
+maxHitstop=Math.floor(0.7*maxStop)
+}
+else{
+maxHitstop=maxStop
+}
+}
+
+
+function pushHandler(player1, player2){
+let a=null;
+let b=null;
+if(akuma.currentState=="forwardDash" || akuma.currentState=="walkForward"){
+//console.log("At "+akuma.currentState+", Original: "+(akuma.originalPosition.x+(akuma.pushBox.width/2))+" vs Current: "+(akuma.pushBox.realPos.x+(akuma.pushBox.width/2)))
+//console.log("For Ken, At "+ken.currentState+", Original: "+(ken.originalPosition.x+(ken.pushBox.width/2))+" vs Current: "+(ken.pushBox.realPos.x+(ken.pushBox.width/2)))
+}
+player1.pushBox.update()
+player2.pushBox.update()
+////console.log("P1 Pos: "+player1.pushBox.realPos.x+"\nP1 Width: "+player1.pushBox.width+"\nP1 Left: "+player1.pushBox.right)
+
+if(player1.pushBox.realPos.x+(player1.pushBox.width/2) < player2.pushBox.realPos.x+(player2.pushBox.width/2)){
+a=player1
+b=player2
+}
+else if(player1.pushBox.realPos.x+(player1.pushBox.width/2) > player2.pushBox.realPos.x+(player2.pushBox.width/2)){
+b=player1
+a=player2
+}
+//CROSS CHECK
+if(a !=null){
+if(b==akuma && b.velocity.x!=0){
+
+}
+let aCrossed=a.pushBox.realPos.x-a.originalPosition.x
+let bCrossed=b.pushBox.realPos.x-b.originalPosition.x
+let crossed=false
+let aPush=false
+if(Math.abs(aCrossed)>Math.abs(bCrossed)){
+aPush=true
+}
+if(b.originalPosition.x+(b.pushBox.width/2)<=a.originalPosition.x + (a.pushBox.width/2)&& a.pushBox.top<=b.pushBox.bottom && a.pushBox.bottom>=b.pushBox.top){
+crossed=true
+}
+
+if(crossed==true){
+//console.log("Crossed")
+if(aCrossed !=0 && bCrossed==0){b.pushBox.realPos.x=a.pushBox.left-b.pushBox.width}
+else if(aCrossed==0 && bCrossed !=0){a.pushBox.realPos.x=b.pushBox.right}
+else if(aCrossed!=0 && bCrossed !=0){
+let sameDir=false
+if(aCrossed/Math.abs(aCrossed)== bCrossed/Math.abs(bCrossed)){sameDir=true}
+if(sameDir==true && aPush==true){b.pushBox.realPos.x=a.pushBox.left-b.pushBox.width}
+else if(sameDir==true && aPush==false){
+//console.log("B Pushed")
+a.pushBox.realPos.x=b.pushBox.right
+}
+
+if(sameDir==false){
+a.pushBox.realPos.x=b.pushBox.right
+a.pushBox.realPos.x+=aCrossed
+b.pushBox.realPos.x+=aCrossed
+}
+
+}
+a.resolve()
+b.resolve()
+}
+a.pushBox.update()
+b.pushBox.update()
+
+}
+//CROSS CHECK END
+
+if(player1.pushBox.left<player2.pushBox.right && player2.pushBox.left<player1.pushBox.right && player1.pushBox.bottom>player2.pushBox.top && player1.pushBox.top<player2.pushBox.bottom){
+let left=null
+let right=null
+let p1Crossed=player1.pushBox.realPos.x-player1.originalPosition.x
+let p2Crossed=player2.pushBox.realPos.x-player2.originalPosition.x
+let p1Pos=player1.pushBox.realPos.x+(player1.pushBox.width/2)
+let p2Pos=player2.pushBox.realPos.x+(player2.pushBox.width/2)
+if(p1Pos < p2Pos || (p1Pos==p2Pos && player1.originalPosition.x+(player1.pushBox.width/2)< player2.originalPosition.x+(player2.pushBox.width/2)) || (p1Pos==p2Pos && player1.pushBox.left<=0 && player1.pushBox.bottom>player2.pushBox.bottom) || (p1Pos==p2Pos && player2.pushBox.right>=gameWidth && player1.pushBox.bottom<player2.pushBox.bottom)){
+left=player1
+right=player2
+}
+else if(p1Pos > p2Pos || (p1Pos==p2Pos && player1.originalPosition.x+(player1.pushBox.width/2)> player2.originalPosition.x+(player2.pushBox.width/2))  || (p2Pos==p1Pos && player2.pushBox.left<=0 && player2.pushBox.bottom>player1.pushBox.bottom) || (p2Pos==p1Pos && player1.pushBox.right>=gameWidth && player2.pushBox.bottom<player1.pushBox.bottom)){
+right=player1
+left=player2
+}
+else{
+//console.log("Invalid")
+}
+////console.log("Player1 Position: "+player1.pushBox.right+" vs Player2 Position: "+player2.pushBox.right)
+if(left !=null){
+let aCrossed=left.pushBox.realPos.x-left.originalPosition.x
+let bCrossed=right.pushBox.realPos.x-right.originalPosition.x
+let minDistance=(left.pushBox.width/2)+(right.pushBox.width/2)
+//DISTANCE BETWEEN CENTERS
+let distance=(right.pushBox.realPos.x+(right.pushBox.width)/2) - (left.pushBox.realPos.x+(left.pushBox.width)/2)
+////console.log("Left distance: "+aCrossed+"\nRight distance: "+bCrossed+"\nminDist: "+minDistance+"\nactualDistance: "+distance)
+if(distance<minDistance && left.pushBox.bottom>=right.pushBox.top && left.pushBox.top<=right.pushBox.bottom){
+if(aCrossed !=0 && bCrossed==0){
+right.pushBox.realPos.x=left.pushBox.right
+}
+
+}
+if(distance<minDistance && left.pushBox.bottom>=right.pushBox.top && left.pushBox.top<=right.pushBox.bottom){
+
+if(aCrossed !=0 && bCrossed==0){
+right.pushBox.realPos.x=left.pushBox.right
+}
+else if(aCrossed==0 && bCrossed==0){
+if(left.bottom>right.bottom){
+right.pushBox.realPos.x=left.pushBox.right
+}
+else{
+left.pushBox.realPos.x=right.pushBox.left-left.pushBox.width
+}
+}
+else if(aCrossed ==0 && bCrossed !=0){
+left.pushBox.realPos.x=right.pushBox.left-left.pushBox.width
+}
+else if(aCrossed !=0 && bCrossed !=0){
+let sameDir=false
+if(aCrossed/Math.abs(aCrossed)== bCrossed/Math.abs(bCrossed)){sameDir=true}
+if(sameDir==true && Math.abs(aCrossed)>Math.abs(bCrossed)){right.pushBox.realPos.x=left.pushBox.right}
+else if(sameDir==true && Math.abs(aCrossed)<Math.abs(bCrossed)){left.pushBox.realPos.x=right.pushBox.left-left.pushBox.width}
+
+if(sameDir==false){
+//console.log("Different directions")
+left.pushBox.realPos.x=right.pushBox.left-left.pushBox.width
+left.pushBox.realPos.x+=aCrossed
+right.pushBox.realPos.x+=aCrossed
+}
+
+}
+//GROUND END
+left.resolve()
+right.resolve()
+left.pushBox.update()
+right.pushBox.update()
+}
+//VERTICAL OVERLAP START
+if(player1.pushBox.bottom>player2.pushBox.top && player1.pushBox.top<player2.pushBox.bottom){
+let high=null
+let low=null
+if(player1.pushBox.realPos.y<player2.pushBox.realPos.y){
+high=player1
+low=player2
+}
+else if(player1.pushBox.realPos.y>player2.pushBox.realPos.y){
+high=player2
+low=player1
+}
+if(high!=null){
+if((low.pushBox.realPos.x+(low.pushBox.width/2))<(high.pushBox.realPos.x+(high.width/2))){
+high.pushBox.realPos.x=low.pushBox.right
+}
+else{
+high.pushBox.realPos.x=low.pushBox.left-high.pushBox.width
+}
+}
+
+}
+//VERTICAL OVERLAP END
+}
+//TEMP TOTAL OVERLAP IF END
+player1.resolve()
+player2.resolve()
+player1.pushBox.update()
+player2.pushBox.update()
+
+}
+//WALL FIX START
+let less=null
+let great=null
+if(player1.pushBox.realPos.x<player2.pushBox.realPos.x){
+less=player1
+great=player2
+}
+else{
+less=player2
+great=player1
+}
+//LEFT WALL FIX
+if(less.pushBox.left<0){
+less.pushBox.realPos.x=0
+if(great.pushBox.left<=less.pushBox.right){
+great.pushBox.realPos.x=less.pushBox.realPos.x+less.pushBox.width
+}
+}
+//LEFT WALL END
+
+//RIGHT WALL FIX
+if(great.pushBox.right>gameWidth){
+great.pushBox.realPos.x=gameWidth-great.pushBox.width
+if(less.pushBox.right>=great.pushBox.left){
+less.pushBox.realPos.x=great.pushBox.realPos.x-less.pushBox.width
+}
+}
+//RIGHT WALL END
+
+
+player1.resolve()
+player2.resolve()
+player1.pushBox.update()
+player2.pushBox.update()
+
+//WALL FIX END
+
+
+}
+
+const states=[
+"idle",
+"walk",
+"dash",
+"back dash",
+"jump",
+"forward jump",
+"back jump",
+"crouch",
+"stand block",
+"crouch block",
+"attack"
+]
+class pushBox{
+constructor({fighter, offset, color, width, height, prop, logic}){
+this.fighter=fighter;
+this.realPos;
+this.left;
+this.right;
+this.top;
+this.bottom;
+this.offset=offset;
+this.color=color;
+this.width=width;
+this.height=height;
+this.prop=prop;
+this.logic=logic;
+}
+
+draw(){
+context.fillStyle=this.color;
+context.fillRect(this.realPos.x, this.realPos.y-this.height, this.width, this.height)
+}
+update(){
+this.color=this.fighter.color
+this.width=this.fighter.width
+this.height=this.fighter.height
+this.realPos={
+x: 0,
+y: 0
+}
+
+if(this.fighter.direction==1){
+this.realPos.x=this.fighter.position.x+(this.fighter.direction*this.offset.x)
+}
+else{
+this.realPos.x=this.fighter.position.x+(this.fighter.direction*this.offset.x)+(this.width*this.fighter.direction)
+}
+this.realPos.y=this.fighter.position.y-this.offset.y
+this.left=this.realPos.x
+this.right=this.realPos.x+this.width
+this.bottom=this.realPos.y+this.offset.y
+this.top=this.realPos.y-this.height
+
+if(this.logic && this.fighter.hitStopped==false){
+this.logic()
+}
+}
+}
+
+
+
+
+//HURTBOX CLASS HERE
+class hurtBox{
+constructor({fighter, offset, width, height, velocity, prop, activation, logic}){
+this.fighter=fighter;
+this.offset=offset;
+this.realPos;
+this.width=width;
+this.height=height;
+this.velocity=velocity;
+this.prop=prop;
+this.activation=activation;
+this.logic=logic;
+}
+move(){
+this.offset.x+=this.velocity.x
+this.offset.y+=this.velocity.y
+}
+//CONTINUE
+draw(){
+context.fillStyle='rgba(0, 255, 0, 0.3)';
+context.strokeStyle="green"
+context.lineWidth=3
+let hurtX;
+let hurtY=this.fighter.position.y-this.offset.y-this.height;
+let hurtDir=this.fighter.direction*this.width
+hurtX=this.fighter.position.x+(this.fighter.direction*this.offset.x)
+context.strokeRect(hurtX, hurtY, hurtDir, this.height)
+context.fillRect(hurtX, hurtY, hurtDir, this.height)
+}
+update(){
+this.realPos={
+x: 0,
+y: 0
+}
+
+if(this.fighter.direction==1){
+this.realPos.x=this.fighter.position.x+(this.fighter.direction*this.offset.x)
+}
+else{
+this.realPos.x=this.fighter.position.x+(this.fighter.direction*this.offset.x)+(this.width*this.fighter.direction)
+}
+this.realPos.y=this.fighter.position.y-this.offset.y-this.height;
+if(this.logic && this.fighter.hitStopped==false){
+this.logic()
+}
+
+}
+
+}
+//HURTBOX CLASS END
+
+//HITBOX CLASS HERE
+class hitbox{
+constructor({fighter, offset, width, height, velocity, currentColor, startup, active, recovery, stun, blockstun, meter, meterWhiff, cancelWindow, cancels=[], strengthLevel, scaling=100, damage, pushback, hitstop, prop, type, air=false, projectile=false, connected, activation, logic}){
+this.fighter=fighter;
+this.offset=offset;
+this.realPos;
+this.width=width;
+this.height=height;
+this.velocity=velocity;
+this.currentColor=currentColor;
+this.startup=startup;
+this.active=active;
+this.recovery=recovery;
+this.stun=stun;
+this.blockstun=blockstun;
+this.meter=meter;
+this.cancelWindow=cancelWindow;
+this.cancels=cancels;
+this.scaling=scaling;
+this.strengthLevel=strengthLevel;
+this.damage=damage;
+this.pushback=pushback;
+this.hitstop=hitstop;
+this.prop=prop;
+this.type=type
+this.air=air
+this.projectile=projectile
+this.connected=connected
+this.activation=activation;
+this.logic=logic;
+}
+move(){
+this.offset.x+=this.velocity.x
+this.offset.y+=this.velocity.y
+}
+draw(){
+if(this.fighter.framesCurrent>this.startup && this.fighter.framesCurrent<=(this.startup+this.active)){
+context.fillStyle='rgba(255, 0, 0, 0.3)';
+context.strokeStyle="red"
+context.lineWidth=3
+let hitX;
+let hitY=this.fighter.position.y-this.offset.y-this.height;
+let hitDir=this.fighter.direction*this.width
+hitX=this.fighter.position.x+(this.fighter.direction*this.offset.x)
+context.strokeRect(hitX, hitY, hitDir, this.height)
+context.fillRect(hitX, hitY, hitDir, this.height)
+}
+}
+update(){
+this.realPos={
+x: 0,
+y: 0
+}
+if(this.fighter.direction==1){
+this.realPos.x=(this.fighter.position.x)+(this.fighter.direction*this.offset.x)
+}
+else{
+this.realPos.x=(this.fighter.position.x)+(this.fighter.direction*this.offset.x)+(this.width*this.fighter.direction)
+}
+this.realPos.y=this.fighter.position.y-this.offset.y-this.height;
+if(this.logic && this.fighter.hitStopped==false){
+this.logic()
+}
+
+
+}
+
+}
+//HITBOX CLASS END
+
+//PROJECTILE CLASS HERE
+class Projectile{
+constructor({thrower, target, position, velocity, width, height, duration, framesCurrent=0, hitA=true, hits, hitboxes=[], hurtboxes=[], linger=false, direction, hitStopped, logic}){
+this.thrower=thrower;
+this.target=target;
+this.position=position;
+this.velocity=velocity;
+this.width=width;
+this.height=height;
+this.duration=duration;
+this.framesCurrent=framesCurrent;
+this.hitA=hitA;
+this.hits=hits;
+this.hitboxes=hitboxes;
+this.hurtboxes=hurtboxes;
+this.linger=linger;
+this.direction=direction;
+this.hitStopped=hitStopped
+this.logic=logic;
+}
+draw(){
+for(let u=0; u<this.hitboxes.length; u++){
+this.hitboxes[u].fighter=this
+this.hitboxes[u].direction=this.direction
+}
+for(let k=0; k<this.hitboxes.length; k++){
+this.hitboxes[k].draw()
+
+}
+}
+
+update(){
+for(let u=0; u<this.hitboxes.length; u++){
+this.hitboxes[u].fighter=this
+this.hitboxes[u].direction=this.direction
+}
+
+this.hitStopped=this.thrower.hitStopped
+if(this.hitStopped==false){
+this.framesCurrent++
+if(this.logic){
+this.logic()
+}
+this.position.x+=this.direction*this.velocity.x
+this.position.y+=this.velocity.y
+
+for(let i=0; i<this.hitboxes.length; i++){
+if(this.hitboxes[i].connected==true && this.hits>0){
+this.hits--
+for(let j=0; j<this.hitboxes.length; j++){
+this.hitboxes[j].connected=false
+}
+break
+}
+
+}
+for(let k=0; k<this.hitboxes.length; k++){
+this.hitboxes[k].update()
+
+}
+
+if(this.position.x-(this.direction*this.width)>gameWidth || this.framesCurrent>this.duration || this.hits==0){
+let loc=this.thrower.projectiles.indexOf(this)
+this.thrower.projectiles.splice(loc, 1)
+}
+
+
+}
+
+}
+
+}
+
+//PROJECTILE CLASS END
+
+
+class Effect{
+constructor({position, sprite, scale, spriteLength, offset={x: 0, y: 0}, direction=1, grid={x: 4, y: 4}}){
+this.position=position;
+this.sprite=sprite;
+this.sprites=[];
+this.scale=scale;
+this.spriteLength=spriteLength;
+this.offset=offset;
+this.animFrames=0;
+this.direction=direction;
+this.grid=grid;
+const sheets=[]
+
+}
+async loadAnimations(){
+const fullStates=[this.sprite]
+
+const promises=fullStates.map(async fullState=>{
+this.sprites=await loadAnimation(fullState, this.constructor.name);
+console.log(this.sprites)
+})
+
+await Promise.all(promises);
+
+}
+draw(){
+if(this.spriteLength>0 && this.sprites.length>0){
+
+let sheetIndex=Math.floor(this.animFrames/8)
+
+if(this.animFrames>=this.spriteLength){
+effects.splice(effects.indexOf(this), 1);
+return;
+}
+
+
+sheetIndex=Math.floor(this.animFrames/(this.grid.x*this.grid.y))
+const actualFrameX=this.animFrames%this.grid.x
+const actualFrameY=Math.floor(this.animFrames/this.grid.y)
+if(this.currentState=="crouchMediumPunch") {}
+const sheet=this.sprites[sheetIndex];
+let scale=this.scale
+const off={
+x: this.scale*sheet.width/(this.grid.x*2),
+y: this.scale*sheet.height/(this.grid.y*2)
+}
+if(this.offset.x != 0){
+off.x=this.offset.x
+
+}
+if(this.offset.y != 0){
+off.y=this.offset.y
+
+}
+context.save()
+
+if(this.direction===-1){
+
+context.scale(-1, 1)
+
+
+context.drawImage(
+      sheet,
+      actualFrameX*sheet.width/this.grid.x,
+      actualFrameY*sheet.height/this.grid.y,
+      sheet.width/this.grid.x,
+      sheet.height/this.grid.y,
+      -1*(this.position.x+(off.x)),
+      this.position.y-off.y,
+      sheet.width/this.grid.x * scale,
+      sheet.height/this.grid.y * scale)
+
+}
+else{
+context.drawImage(
+      sheet,
+      actualFrameX*sheet.width/this.grid.x,
+      actualFrameY*sheet.height/this.grid.y,
+      sheet.width/this.grid.x,
+      sheet.height/this.grid.y,
+      this.position.x-off.x,
+      this.position.y-off.y,
+      sheet.width/this.grid.x * scale,
+      sheet.height/this.grid.y * scale)
+
+}
+
+context.restore()  
+}
+this.animFrames++;  
+}
+}
+
+class Hitspark extends Effect{
+constructor({position, sprite, scale, spriteLength, offset={x: 0, y: 0}, direction=1, grid={x: 4, y: 4}}){
+super({position, sprite, scale, spriteLength, offset, direction, grid})
+for(let i=1; i<2 ;i++){
+let source=`spriteSheets/Effect/Hitspark_${i}.png`
+console.log(source)
+const img=new Image()
+img.onerror= ()=>{
+
+console.warn(`Sprite not found: ${source}`)
+resolve(null)
+}
+img.src=source
+
+if(img===null){
+break;
+}
+else{
+this.sprites.push(img)
+}
+}
+
+}
+
+}
+
+
+//BOX CLASS HERE
+class Box{
+constructor({position, originalPosition, width, height, color="red", velocity, gravity=0.7, direction, atWall=false, jumped=false, crouched=false, maxHealth, framesCurrent=0, stunFrames, attack=false, stunned=false, hitStopped=false, meter=0, buttonCharge, downCharge=0, backCharge=0, followUps=[], currentState="idle", targetBox, projectiles, maxProject=1, openWindow=0, maxWindow, cancels=[], animFrames=0, currentSprite=null, uniState, uniStates, basicStates, attackState, hitState, deathState}){
+this.originalPosition=originalPosition;
+this.name;
+this.position=position;
+this.pushBox=pushBox;
+this.originalHeight=height;
+this.originalWidth=width;
+this.width=width;
+this.height=height;
+this.color=color;
+this.velocity=velocity;
+this.gravity=gravity;
+this.direction=direction;
+this.atWall=atWall;
+this.jumped=jumped;
+this.crouched=crouched;
+this.maxHealth=maxHealth;
+this.framesCurrent=framesCurrent;
+this.stunFrames={
+count: 0,
+push: 0,
+feet: null
+}
+this.attack=attack;
+this.stunned=stunned;
+this.hitStopped=hitStopped;
+this.meter=meter;
+this.buttonCharge={
+LP: 0,
+MP: 0,
+HP: 0,
+LK: 0,
+MK: 0,
+HK: 0
+};
+this.downCharge=downCharge;
+this.backCharge=backCharge
+this.followUps=followUps;
+this.currentState=currentState;
+this.targetBox=targetBox
+this.projectiles=projectiles;
+this.maxProject=maxProject;
+this.vibe=1;
+this.openWindow=openWindow;
+this.maxWindow=maxWindow;
+this.cancels=cancels;
+this.animFrames=0;
+this.sprites={};
+this.spriteInfo={};
+this.currentSprite=new Image;
+this.currentSprite.src="spriteSheets/"+this.constructor.name+"/idle.png";
+//EXPERIMENTAL STATE MACHINE
+this.uniState=
+{
+idle:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -this.originalWidth/2,
+y: 0
+},
+width: this.originalWidth,
+height: this.originalHeight,
+active: true,
+velocity: {
+x: 0,
+y: 0
+},
+color: "red",
+transitions: ["walkForward", "walkBack", "neutralJump", "forwardJump", "backJump", "crouch", "standLightPunch", "hitstun", "standHeavyPunch", "standMediumPunch", "trip", "crumple", "hardKnockdown", "DemonFlip", "Hadoken", "standLightKick", "standMediumKick", "standHeavyKick"],
+conditional: "none",
+logic: ()=>{
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 0
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 420/3
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -65,
+y: 840/3
+},
+width: 130,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+this.targetBox=[hBox1, hBox2, hBox3]
+this.framesCurrent++
+if(this.framesCurrent>=10){
+this.framesCurrent=0
+}
+}
+},
+
+hitstun: {
+position: this.position,
+pushOff:{
+x: -this.originalWidth/2,
+y: 0
+},
+width: this.originalWidth,
+height: this.originalHeight,
+active: false,
+velocity: {
+x: 0,
+y: 0
+},
+color: "lime",
+transitions: ["idle", "hitstun", "trip", "crumple", "hardKnockdown", "crouch"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 0
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 420/3
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -65,
+y: 840/3
+},
+width: 130,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+this.targetBox=[hBox1, hBox2, hBox3]
+
+
+this.attack=false
+this.stunned=true
+if(this.framesCurrent<=5){
+this.velocity.x=this.stunFrames.push/5
+}
+
+else{
+this.velocity.x=0
+}
+this.framesCurrent++
+if(this.stunFrames.feet=="standHit"){
+this.height=this.originalHeight
+}
+else{
+this.height=this.originalHeight/2
+this.crouched=true
+}
+
+
+if(this.framesCurrent>=this.stunFrames.count){
+//console.log("Stunned for "+this.framesCurrent+" frames.")
+this.framesCurrent=0;
+this.stunned=false;
+if(this.stunFrames.feet=="standHit"){
+this.switchState("idle");
+}
+else{
+this.switchState("crouch")
+this.crouched=false
+}
+}
+}
+},
+//AIRSTUN
+airstun:{
+position: this.position,
+pushOff:{
+x: -this.originalWidth/2,
+y: 0
+},
+width: this.originalWidth,
+height: this.originalHeight,
+active: false,
+velocity: {
+x: 0,
+y: 0
+},
+color: "white",
+transitions: ["idle", "hitstun", "blockstun", "airstun"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 0
+},
+width: 100,
+height: 250,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+this.targetBox=[hBox1]
+
+
+this.stunned=true
+this.attack=false
+this.velocity.x=this.stunFrames.push/this.stunFrames.count
+this.framesCurrent++
+
+//FALL LOGIC
+
+this.velocity.y+=1
+this.jumped=true
+
+if(this.pushBox.realPos.y+0.7>=ground && this.currentState=="airstun"){
+this.pushBox.realPos.y=ground;
+this.jumped=false
+this.framesCurrent=0;
+this.attack=false;
+this.stunned=false;
+this.switchState("idle");
+}
+//FALL LOGIC END
+
+if(this.framesCurrent>=this.stunFrames.count){
+this.framesCurrent=0;
+}
+}
+},
+
+blockstun:{
+position: this.position,
+pushOff:{
+x: -this.originalWidth/2,
+y: 0
+},
+width: this.originalWidth,
+height: this.originalHeight,
+active: false,
+velocity: {
+x: 0,
+y: 0
+},
+color: "white",
+transitions: ["idle", "hitstun", "blockstun", "crouch"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 0
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 420/3
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -65,
+y: 840/3
+},
+width: 130,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+this.targetBox=[hBox1, hBox2, hBox3]
+
+
+
+this.stunned=true
+this.velocity.x=this.stunFrames.push/this.stunFrames.count
+this.framesCurrent++
+if(this.stunFrames.feet=="standBlock"){
+this.height=this.originalHeight
+}
+else{
+this.height=this.originalHeight/2
+this.crouched=true
+}
+if(this.framesCurrent>=this.stunFrames.count){
+this.framesCurrent=0;
+this.stunned=false;
+if(this.stunFrames.feet=="standHit"){
+this.switchState("idle");
+}
+else{
+this.switchState("crouch")
+this.crouched=false
+}
+}
+}
+},
+hardKnockdown:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.originalWidth,
+height: this.originalWidth,
+active: true,
+velocity: {
+x: 0,
+y: 0
+},
+color: "orange",
+transitions: ["idle", "crouch"],
+conditional: "none",
+logic: ()=>{
+this.targetBox=[]
+
+this.stunned=true
+
+this.framesCurrent++
+if(this.framesCurrent==70){
+this.stunned=false
+this.attack=false
+this.switchState("idle")
+}
+}
+},
+//CRUMPLE STATE
+crumple: {
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.originalWidth,
+height: this.originalHeight-20,
+active: true,
+velocity: {
+x: 0,
+y: 0
+},
+color: "LightBlue",
+transitions: ["hitstun", "hardKnockdown"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 0
+},
+width: 100,
+height: this.height,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+this.targetBox=[hBox1]
+
+
+this.stunned=true
+this.framesCurrent++
+if(this.framesCurrent==30){
+this.switchState("hardKnockdown")
+}
+}
+},
+
+//TRIP STATE
+trip:{
+position:{
+x: this.position.x,
+y: this.position.y
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.originalWidth,
+height: this.originalWidth,
+active: true,
+velocity: {
+x: 0,
+y: 0
+},
+color: "LightCoral",
+transitions: ["hardKnockdown"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+this.targetBox=[]
+
+this.stunned=true
+this.framesCurrent++
+if(this.framesCurrent==10){
+this.switchState("hardKnockdown")
+}
+}
+},
+
+spike:{
+position: this.position,
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.originalWidth,
+height: this.originalWidth,
+active: true,
+velocity: {
+x: 0,
+y: 10
+},
+color: "LightCoral",
+transitions: ["hardKnockdown"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+this.targetBox=[]
+
+this.stunned=true
+this.velocity.x=this.stunFrames.push/this.stunFrames.count
+this.framesCurrent++
+this.velocity.y+=1
+this.jumped=true
+if(this.position.y+this.velocity.y>=ground){
+this.pushBox.realPos.y=ground
+this.resolve()
+//console.log(this.pushBox.realPos.y +" vs "+this.position.y)
+this.jumped=false
+this.attack=false;
+this.switchState("hardKnockdown");
+}
+
+}
+},
+//NEW STATE HERE
+
+}
+
+;
+//REMAINING EXPERIMENTAL STATE MACHINES
+this.basicStates=["walkForward", "walkBack", "neutralJump", "forwardJump", "backJump", "crouch", "standLightPunch", "jumpLightPunch", "crouchLightPunch", "standMediumPunch", "standHeavyPunch", "crouchMediumPunch", "crouchHeavyPunch", "jumpMediumPunch", "jumpHeavyPunch","standLightKick", "jumpLightKick", "crouchLightKick", "standMediumKick", "standHeavyKick", "crouchMediumKick", "crouchHeavyKick", "jumpMediumKick", "jumpHeavyKick", "forwardDash", "backDash", "DemonFlip", "Hadoken"];
+this.uniStates=["idle", "hitstun", "blockstun", "airstun", "crumple", "hardKnockdown", "trip", "spike"];
+this.attackState=attackState;
+this.hitState=hitState;
+this.deathState=deathState;
+}
+clear(){
+context.clearRect(this.position.x, this.position.y, this.width, this.height)
+  }
+
+translate(direct){
+if(this.direction==-1){
+if(direct==1){
+return (3)
+}
+else if(direct==3){
+return (1)
+}
+else if(direct==4){
+return (6)
+}
+else if(direct==6){
+return (4)
+}
+else if(direct==7){
+return (9)
+}
+else if(direct==9){
+return (7)
+}
+else{
+return(direct)
+}
+}
+else{
+return(direct)
+}
+
+}
+prioritise(butCom){
+let correctButton="nothing"
+let buttonList=["LP", "LK", "MP", "MK", "HP", "HK"]
+
+//LOOP
+butCom.forEach ((button)=>{
+if(buttonList.indexOf(button.name)>buttonList.indexOf(correctButton) && button.held==false){
+correctButton=button.name
+}
+})
+//LOOP END
+return correctButton
+}
+
+inputTranslator(inputHistory){
+let commands;
+let lastIn=inputHistory[inputHistory.length-1]
+let inputSequence=[]
+let justTapped=[]
+let punchPressed=false
+let kickPressed=false
+//CHARGE START
+
+//DIRECTION START
+if(this.stunned==false){
+if((this.translate(lastIn.direction)==4 || this.translate(lastIn.direction)==1) && this.backCharge<90){
+this.backCharge+=1
+}
+else if((this.translate(lastIn.direction)==4 || this.translate(lastIn.direction)==1) && this.backCharge==90){
+this.backCharge=90
+}
+else if((this.translate(lastIn.direction)!=4 && this.translate(lastIn.direction)!=1) && this.backCharge>=90){
+this.backCharge+=1
+}
+else if((this.translate(lastIn.direction)!=4 && this.translate(lastIn.direction)!=1) && this.backCharge<90){
+this.backCharge=0
+}
+
+if(this.backCharge>=110 || this.currentState=="forwardDash" || this.currentState=="forwardJump"){
+this.backCharge=0
+}
+
+//DOWN
+if((this.translate(lastIn.direction)==2 || this.translate(lastIn.direction)==1) && this.downCharge<90){
+this.downCharge+=1
+}
+else if((this.translate(lastIn.direction)==2 || this.translate(lastIn.direction)==1) && this.downCharge==90){
+this.downCharge=90
+}
+else if((this.translate(lastIn.direction)!=2 && this.translate(lastIn.direction)!=1) && this.downCharge>=90){
+this.downCharge+=1
+}
+else if((this.translate(lastIn.direction)!=2 && this.translate(lastIn.direction)!=1) && this.downCharge<90){
+this.downCharge=0
+}
+
+if(this.downCharge>=110 || this.currentState=="forwardDash" || this.currentState=="forwardJump"){
+this.downCharge=0
+}
+
+}
+//DIRECTION END
+
+
+//CHARGE END
+for(let i=0; i<this.followUps.length; i++){
+if(this.followUps[i].button==this.prioritise(lastIn.button) && this.followUps[i].exec==false){
+this.followUps[i].exec=true
+return
+}
+}
+
+
+//BEGIN PRIORITY LOOP
+if(lastIn.button.length>0){
+//1ST LOOP
+for(let i=0; i<lastIn.button.length; i++){
+if(lastIn.button[i].held==false){
+justTapped.push(lastIn.button[i].name)
+}
+}
+
+//1ST LOOP END
+if(justTapped.indexOf("LP") != -1 || justTapped.indexOf("MP") != -1 || justTapped.indexOf("HP") !=-1){
+punchPressed="P"
+}
+
+if(justTapped.indexOf("LK") != -1 || justTapped.indexOf("MK") != -1 || justTapped.indexOf("HK") !=-1){
+kickPressed="K"
+}
+
+
+//1ST LAYER
+for(let i=0; i<this.startupInfo.length; i++){
+let currentMove=this.startupInfo[i]
+let inWin=this.startupInfo[i].window
+let inSeq=[];
+let cleanSeq=[];
+let j=1
+let winCheck=0
+let inputExecuted=false;
+//2ND LAYER
+while(j<=inputHistory.length && winCheck<inWin){
+if(inputHistory[inputHistory.length-j].direction != 5){
+inSeq.unshift(this.translate(inputHistory[inputHistory.length-j].direction))
+}
+winCheck+=inputHistory[inputHistory.length-j].frameCount
+j++
+}
+//2ND LAYER END
+//INPUT CLEANING LAYER
+cleanSeq.push(inSeq[0])
+for(let k=0; k<inSeq.length; k++){
+if(inSeq[k] != cleanSeq[cleanSeq.length-1]){
+cleanSeq.push(inSeq[k])
+}
+}
+let stringSeq=cleanSeq.join("")
+//INPUT CLEANING LAYER END
+//INPUT CHECKING LAYER
+for(let l=0; l<currentMove.inputs.length; l++){
+let currIn=currentMove.inputs[l]
+let currInLength=currentMove.inputs[l].length
+let inputMatched=false
+if(currIn==stringSeq.slice(-1*currInLength) && (currentMove.button==punchPressed || currentMove.button==kickPressed)){
+inputMatched=true
+}
+if(inputMatched==true && this.meter>=currentMove.meterReq && this.jumped==currentMove.airState){
+this.switchState(currentMove.name)
+inputExecuted=true
+break
+}
+
+}
+//INPUT CHECKING LAYER END
+if(inputExecuted==true){
+break
+}
+}
+
+//1ST LAYER END
+}
+
+
+
+
+//END LOOP
+let window;
+if(inputHistory.length>=4){
+window=(inputHistory[inputHistory.length-3]["frameCount"]+inputHistory[inputHistory.length-2]["frameCount"]+inputHistory[inputHistory.length-1]["frameCount"])
+}
+if(lastIn.button.length==0 && inputHistory.length>=4){
+inputSequence.push(this.translate(inputHistory[inputHistory.length-3].direction),this.translate(inputHistory[inputHistory.length-2].direction),this.translate(inputHistory[inputHistory.length-1].direction))
+}
+
+if(JSON.stringify(inputSequence)==JSON.stringify([6,5,6]) && window<=20 && inputHistory[inputHistory.length-1]["frameCount"]==1){
+this.switchState("forwardDash")
+}
+else if((JSON.stringify(inputSequence.slice(1))==JSON.stringify([6,5,6])) && (inputHistory[inputHistory.length-2].frameCount+inputHistory[inputHistory.length-1].frameCount)<=20 && inputHistory[inputHistory.length-1]["frameCount"]==1){
+this.switchState("forwardDash")
+}
+
+if(JSON.stringify(inputSequence)==JSON.stringify([4,5,4]) && window<=20 && inputHistory[inputHistory.length-1]["frameCount"]==1){
+this.switchState("backDash")
+}
+else if((JSON.stringify(inputSequence.slice(1))==JSON.stringify([4,5,4])) && (inputHistory[inputHistory.length-2].frameCount+inputHistory[inputHistory.length-1].frameCount)<=20 && inputHistory[inputHistory.length-1]["frameCount"]==1){
+this.switchState("backDash")
+}
+
+const normals={
+LP: "LightPunch",
+MP: "MediumPunch",
+HP: "HeavyPunch",
+LK: "LightKick",
+MK: "MediumKick",
+HK: "HeavyKick"
+}
+
+let attackStr=""
+if (lastIn.button.length>0 && this.prioritise(lastIn.button) !="nothing"){
+if(this.currentState=="neutralJump" || this.currentState=="forwardJump" || this.currentState=="backJump"){
+attackStr+='jump'
+}
+else if(this.currentState=="crouch"){
+attackStr+='crouch'
+}
+else{
+attackStr+='stand'
+}
+attackStr+=normals[this.prioritise(lastIn.button)]
+this.switchState(attackStr)
+}
+
+
+}
+
+
+
+draw(){
+if(this.sprites[this.currentState].length>0){
+
+if(this.spriteInfo[this.currentState].hold && this.animFrames>this.spriteInfo[this.currentState].hold){
+this.animFrames=this.spriteInfo[this.currentState].hold
+}
+let sheetIndex=Math.floor(this.animFrames/8)
+if((sheetIndex>=this.sprites[this.currentState].length || this.animFrames>(this.spriteInfo[this.currentState].total-1))&& (this.spriteInfo[this.currentState].loop==true)){
+this.animFrames=0
+}
+else if((sheetIndex>=this.sprites[this.currentState].length || this.animFrames>(this.spriteInfo[this.currentState].total-1)) && this.spriteInfo[this.currentState].loop==false){
+this.animFrames--
+}
+
+
+sheetIndex=Math.floor(this.animFrames/8)
+const actualFrame=this.animFrames%8
+if(this.currentState=="crouchMediumPunch") {}
+const sheet=this.sprites[this.currentState][sheetIndex];
+let scale=2
+const off={
+x: 222,
+y: 442
+}
+if(this.spriteInfo[this.currentState].offset.x != 0){
+off.x=this.spriteInfo[this.currentState].offset.x
+
+}
+if(this.spriteInfo[this.currentState].offset.y != 0){
+off.y=this.spriteInfo[this.currentState].offset.y
+
+}
+if(this.currentState=="hitstun" && this.hitStopped==true){
+this.vibe=-1*this.vibe;
+let dir=this.vibe/Math.abs(this.vibe);
+let vibrate=(dir*15)-this.vibe;
+if(Math.abs(this.vibe) <=15){
+
+off.x+=vibrate;
+}
+if(this.vibe%2==0){
+this.vibe++
+}
+else{
+this.vibe--;
+}
+
+}
+if(this.hitStopped==false){
+this.vibe=1
+}
+context.save()
+
+if(this.direction===-1){
+
+context.scale(-1, 1)
+
+
+context.drawImage(
+      sheet,
+      actualFrame*sheet.width/8,
+      0,
+      sheet.width/8,
+      sheet.height,
+      -1*(this.position.x+(off.x)),
+      this.position.y-off.y,
+      sheet.width/8 * scale,
+      sheet.height * scale)
+
+}
+else{
+context.drawImage(
+      sheet,
+      actualFrame*sheet.width/8,
+      0,
+      sheet.width/8,
+      sheet.height,
+      this.position.x-off.x,
+      this.position.y-off.y,
+      sheet.width/8 * scale,
+      sheet.height * scale)
+
+}
+
+context.restore()  
+}  
+
+
+if(!(maxHitstop>hitstopCount && maxHitstop>0)){
+this.animFrames++;
+}
+else{
+
+}
+
+//this.pushBox.draw()
+
+if(boxView){
+if(this.targetBox.length>0){
+for(let i=0; i<this.targetBox.length; i++){
+this.targetBox[i].draw();
+}
+}
+
+if(this.attackBox.length>0){
+for(let i=0; i<this.attackBox.length; i++){
+this.attackBox[i].draw();
+}
+}
+
+if(this.projectiles.length>0){
+for(let i=0; i<this.projectiles.length; i++){
+this.projectiles[i].draw();
+}
+}
+
+
+}
+//if end here
+
+}
+drawHitbox(hit){
+context.fillStyle=hit.currentColor;
+let hitX;
+let hitY=this.position.y+hit.offset.y;
+let hitDir=this.direction*hit.width
+if(this.direction>0){
+hitX=this.position.x+hit.offset.x
+}
+else if(this.direction<0){
+hitX=(this.position.x+this.width)-hit.offset.x
+}
+context.fillRect(hitX, hitY, hitDir, hit.height)
+}
+//ATTACK LOGIC
+standardAttackLogic(attackUsed){
+if(this.framesCurrent<=attackUsed.startup){
+this.attackState="startup"
+}
+else if(this.framesCurrent>attackUsed.startup && this.framesCurrent<=(attackUsed.startup+attackUsed.active)){
+this.attackState="active"
+}
+else if(this.framesCurrent>(attackUsed.startup+attackUsed.active) && this.framesCurrent<=(attackUsed.startup+attackUsed.active+attackUsed.recovery)){
+this.attackState="recovery"
+}
+}
+
+async loadAnimations(){
+const fullStates=[...new Set([...this.basicStates, ...this.uniStates])]
+const promises=fullStates.map(async fullState=>{
+this.sprites[fullState]=await loadAnimation(fullState, this.constructor.name);
+
+})
+
+await Promise.all(promises);
+}
+
+//EXPERIMENTAL STATE SWITCHER
+switchState(news){
+let old;
+let cur;
+if(this.basicStates.includes(this.currentState)){
+old=this.basicState
+}
+else{
+old=this.uniState
+}
+
+if(this.basicStates.includes(news)){
+cur=this.basicState
+}
+else{
+cur=this.uniState
+}
+if(old[this.currentState].transitions.includes(news) || (this.cancels.length>0 && this.cancels.indexOf(news)>-1)){
+let former=this.currentState;
+this.currentState=news;
+this.framesCurrent=0
+this.position.y=cur[news].position.y
+this.height=cur[news].height
+this.pushBox.offset=cur[news].pushOff
+if(news!="spike" && news!="hardKnockdown"){
+this.width=cur[news].width
+}
+if(news!="jumpLightPunch" && news!="jumpMediumPunch" && news!="jumpHeavyPunch" && news!="jumpLightKick" && news!="jumpMediumKick" && news!="jumpHeavyKick"){
+this.velocity.x=this.direction*cur[news].velocity.x
+}
+if(news!="hitstun" && news!="blockstun" && news!="hardKnockdown" && news!="trip" && news!="crumple" && news!="spike"){
+this.stunned=false
+}
+this.velocity.y=cur[news].velocity.y
+this.animFrames=0;
+if(news=="crouch" && former != "idle"){
+this.animFrames=7;
+}
+this.color=cur[news].color
+this.cancels=[]
+this.pushBox.color=this.color
+this.pushBox.width=this.width
+this.pushBox.height=this.height
+this.pushBox.update()
+}
+
+}
+
+//STATE SWITCH END
+switchSide(){
+if(this.currentState=="idle" || this.currentState=="crouch"){
+this.direction*=-1
+}
+}
+airborneLogic(){
+this.velocity.y+=1
+if(this.position.y+this.velocity.y>=ground){
+this.position.y=ground
+this.jumped=false
+if(this.attack==true){this.attack=false}
+this.switchState("idle")
+}
+
+}
+
+jumpLogic(){
+this.jumped=true
+if(this.framesCurrent==5){
+this.velocity.y=this.basicState[this.currentState].velocity.y
+this.velocity.x=this.direction*this.basicState[this.currentState].velocity.x
+
+}
+else if(this.framesCurrent>5){
+this.velocity.y=this.velocity.y+2.17
+console.log(this.velocity.y)
+if(this.position.y+this.velocity.y>=ground){
+this.position.y=ground
+this.jumped=false
+console.log(this.framesCurrent)
+this.switchState("idle")
+}
+}
+else{
+this.velocity.x= 0
+this.velocity.y= 0
+
+this.height=this.originalHeight
+this.pushBox.height=this.originalHeight
+
+}
+
+}
+resolve(){
+if(this.direction==1){
+this.position.x=this.pushBox.realPos.x-(this.direction*this.pushBox.offset.x)
+}
+else{
+this.position.x=this.pushBox.realPos.x-(this.direction*this.pushBox.offset.x)-(this.pushBox.width*this.direction)
+}
+this.position.y=this.pushBox.realPos.y+this.pushBox.offset.y
+}
+
+takeHit(stun, damage, pushback, pro){
+this.stunFrames.count=stun;
+this.stunFrames.push=1*pushback;
+if(this.crouched==true){
+this.stunFrames.feet="crouchHit"
+}
+else{
+this.stunFrames.feet="standHit"
+}
+if(this.jumped==true && pro=="hit"){
+this.switchState("airstun")
+}
+else if(this.jumped==true && pro=="spike"){
+if(this.direction==1){
+
+}
+
+this.switchState("spike")
+}
+else if(pro=="trip"){
+this.switchState("trip")
+}
+else if(this.jumped==false && pro=="crumple"){
+this.switchState("crumple")
+}
+else{
+this.switchState("hitstun");
+}
+}
+blockHit(stun, pushback){
+this.stunFrames.count=stun;
+this.stunFrames.push=1*pushback;
+if(this.crouched==true){
+this.stunFrames.feet="crouchBlock"
+}
+else{
+this.stunFrames.feet="standBlock"
+}
+this.switchState("blockstun");
+}
+crumple(){
+
+}
+//INPUT READER HERE
+readInput(history){
+
+}
+
+
+
+update(){
+if(this.hitStopped==false){
+//ONLY UPDATE WHEN NOT HITSTOPPED
+if(this.attack==false){
+this.attackBox=[]
+}
+//STATE LOCATION CHECK
+let old;
+if(this.basicStates.includes(this.currentState)){
+old=this.basicState
+}
+else{
+old=this.uniState
+}
+//CHECK END
+if(this.currentState.length>=6 && this.currentState.slice(0,6)=="crouch"){
+this.crouched=true
+}
+else{
+this.crouched=false
+}
+old[this.currentState].logic();
+
+if(this.pushBox.left<=0 || this.pushBox.right>=gameWidth){
+this.atWall=true
+//if(this.pushBox.left<=0){
+//this.position.x=this.pushBox.offset.x
+//}
+//else if(this.pushBox.right>=gameWidth){
+//this.position.x=gameWidth-this.pushBox.offset.x
+//}
+}
+else{
+this.atWall=false
+}
+this.pushBox.update()
+this.pushBox.fighter=this
+const trueVel=this.velocity
+if(this.pushBox.left+this.velocity.x<0){
+this.pushBox.realPos.x=0
+this.resolve()
+}
+else if(this.pushBox.right+this.velocity.x>gameWidth){
+this.pushBox.realPos.x=gameWidth-this.pushBox.width
+this.resolve()
+}
+else{
+this.position.x+=this.velocity.x;
+}
+this.position.y+=trueVel.y;
+
+}
+
+this.pushBox.fighter=this
+
+//HITSTOP CONFIRM END HERE
+
+this.pushBox.update()
+if(this.targetBox.length>0){
+for(let i=0; i<this.targetBox.length; i++){
+this.targetBox[i].update();
+}
+}
+
+if(this.attackBox.length>0){
+for(let i=0; i<this.attackBox.length; i++){
+this.attackBox[i].update();
+}
+}
+
+if(this.projectiles.length>0){
+for(let i=0; i<this.projectiles.length; i++){
+this.projectiles[i].update();
+}
+}
+
+//FIGHTER FALLING
+
+//HURTBOX UPDATE
+
+
+}
+}
+//CHILD CLASS HERE
+class Gouki extends Box{
+constructor({position, originalPosition, width, height, color="red", velocity, gravity=0.7, direction, atWall=false, jumped=false, crouched=false, maxHealth, framesCurrent=0, stunFrames, attack=false, stunned=false, hitStopped=false, meter=0, buttonCharge, downCharge=0, backCharge=0, followUps, currentState="idle", targetBox, projectiles=[], maxProject=1, uniState, attackBox=[], attackState, hitState, deathState}){
+super({position, originalPosition, width, height, color, velocity, gravity, direction, atWall, jumped, crouched, maxHealth, framesCurrent, stunFrames, attack, stunned, hitStopped, meter, buttonCharge, downCharge, backCharge, followUps, currentState, targetBox, projectiles, maxProject, uniState})
+
+this.name="Gouki";
+//CANCELS HERE
+this.cancels={
+standLightPunch: ["standLightPunch", "standMediumPunch"],
+standMediumPunch: ["standHeavyPunch", "crouchMediumPunch", "crouchHeavyPunch"],
+standHeavyPunch: ["DemonFlip"],
+crouchMediumPunch: ["Hadoken"]
+}
+
+
+//CANCELS END
+this.pushBox=new pushBox({
+fighter: this, 
+offset: {x: -this.width/2, y: 0}, 
+color: this.color, 
+width: 0, 
+height: 0, 
+prop: null, 
+logic: null})
+
+//MOVE DETAILS HERE
+this.startupInfo=[
+{
+name: "GouHadou",
+button: "P",
+inputs: ["2365236", "2363236", "23652365", "23632365"],
+window: 25,
+meterReq: 100,
+airState: false,
+charge: 0,
+buttonCharge: 0
+},
+{
+name: "DemonFlip",
+button: "P",
+inputs: ["65256", "652565", "6523", "65235", "623", "6235", "6236", "62365"],
+window: 18,
+meterReq: 0,
+airState: false,
+charge: 0,
+buttonCharge: 0
+},
+{
+name: "Shoryuken",
+button: "P",
+inputs: ["65256", "652565", "6523", "65235", "623", "6235", "6236", "62365"],
+window: 18,
+meterReq: 0,
+airState: false,
+charge: 0,
+buttonCharge: 0
+},
+{
+name: "Tatsumaki",
+button: "P",
+inputs: ["214", "2145"],
+window: 14,
+meterReq: 0,
+airState: false,
+charge: 0,
+buttonCharge: 0
+},
+{
+name: "ZankuHadoken",
+button: "P",
+inputs: ["236", "2365"],
+window: 14,
+meterReq: 0,
+airState: true,
+charge: 0,
+buttonCharge: 0
+},
+{
+name: "Hadoken",
+button: "P",
+inputs: ["236", "2365"],
+window: 14,
+meterReq: 0,
+airState: false,
+charge: 0,
+buttonCharge: 0
+},
+{
+name: "overheadChop",
+button: "P",
+inputs: ["236", "2365"],
+window: 1,
+meterReq: 100,
+airState: false,
+charge: 0,
+buttonCharge: 0
+},
+]
+
+this.spriteInfo={
+walkForward: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 275,
+y: 0
+},
+}, 
+walkBack: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 275,
+y: 0
+},
+}, 
+neutralJump: {
+total: 40,
+loop: true,
+hold: null,
+offset: {
+x: 275,
+y: 0
+},
+}, 
+forwardJump: {
+total: 40,
+loop: true,
+hold: null,
+offset: {
+x: 275,
+y: 0
+},
+}, 
+backJump: {
+total: 40,
+loop: true,
+hold: null,
+offset: {
+x: 275,
+y: 0
+},
+}, 
+crouch: {
+total: 22,
+loop: true,
+hold: 7,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+standLightPunch: {
+total: 12,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+jumpLightPunch: {
+total: 13,
+loop: true,
+hold: 12,
+offset: {
+x: 274,
+y: 0
+},
+}, 
+crouchLightPunch: {
+total: 13,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+standMediumPunch: {
+total: 19,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+standHeavyPunch: {
+total: 28,
+loop: true,
+hold: null,
+offset: {
+x: 265,
+y: 0
+},
+}, 
+crouchMediumPunch: {
+total: 19,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+crouchHeavyPunch: {
+total: 30,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 538
+},
+}, 
+jumpMediumPunch: {
+total: 15,
+loop: false,
+hold: 7,
+offset: {
+x: 274,
+y: 0
+},
+}, 
+jumpHeavyPunch: {
+total: 13,
+loop: false,
+hold: null,
+offset: {
+x: 274,
+y: 0
+},
+}, 
+standLightKick: {
+total: 15,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+jumpLightKick: {
+total: 18,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+crouchLightKick: {
+total: 15,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+standMediumKick: {
+total: 28,
+loop: true,
+hold: null,
+offset: {
+x: 265,
+y: 0
+},
+}, 
+standHeavyKick: {
+total: 37,
+loop: true,
+hold: null,
+offset: {
+x: 265,
+y: 0
+},
+}, 
+crouchMediumKick: {
+total: 28,
+loop: true,
+hold: null,
+offset: {
+x: 249,
+y: 0
+},
+}, 
+crouchHeavyKick: {
+total: 39,
+loop: true,
+hold: null,
+offset: {
+x: 255,
+y: 0
+},
+}, 
+jumpMediumKick: {
+total: 29,
+loop: false,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+jumpHeavyKick: {
+total: 13,
+loop: true,
+hold: 9,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+forwardDash: {
+total: 23,
+loop: true,
+hold: null,
+offset: {
+x: 265,
+y: 0
+},
+}, 
+backDash: {
+total: 18,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+DemonFlip: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+Hadoken: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+},
+idle: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+hitstun: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 264,
+y: 490
+},
+}, 
+blockstun: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 254,
+y: 490
+},
+}, 
+airstun: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 264,
+y: 0
+},
+}, 
+crumple: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+hardKnockdown: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+trip: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+spike: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}
+}
+
+
+//MOVE DETAILS END
+//BASIC STATES HERE
+this.basicState=
+{
+idle:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -this.width/2,
+y: 0
+},
+width: this.originalWidth,
+height: this.originalHeight,
+active: true,
+velocity: {
+x: 0,
+y: 0
+},
+color: "red",
+transitions: ["walkForward", "walkBack", "neutralJump", "forwardJump", "backJump", "crouch", "standLightPunch", "hitstun", "forwardDash", "backDash"],
+conditional: "none",
+logic: ()=>{}
+},
+walkForward:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.originalWidth,
+height: this.originalHeight,
+active: false,
+velocity:{
+x: 10,
+y: 0
+},
+color: "blue",
+transitions: ["idle", "walkBack", "neutralJump", "forwardJump", "crouch", "standLightPunch", "hitstun", "standHeavyPunch", "standMediumPunch", "trip", "crumple", "hardKnockdown", "forwardDash", "DemonFlip", "Hadoken", "standLightKick", "standMediumKick", "standHeavyKick"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 0
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 420/3
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -65,
+y: 840/3
+},
+width: 130,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+this.targetBox=[hBox1, hBox2, hBox3]
+
+}
+},
+walkBack:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.originalWidth,
+height: this.originalHeight,
+active: false,
+velocity:{
+x: -10,
+y: 0
+},
+color: "green",
+transitions: ["idle", "walkForward", "neutralJump", "backJump", "crouch", "standLightPunch", "hitstun", "blockstun", "standHeavyPunch", "standMediumPunch", "trip", "crumple", "hardKnockdown", "backDash", "DemonFlip", "standLightKick", "standMediumKick", "standHeavyKick"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 0
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 420/3
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -65,
+y: 840/3
+},
+width: 130,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+this.targetBox=[hBox1, hBox2, hBox3]
+
+}
+},
+neutralJump:{
+position: this.position,
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.width,
+height: this.originalHeight/2,
+active: false,
+velocity: {
+x: 0,
+y: -39.1
+},
+color: "yellow",
+transitions: ["neutralFall", "idle", "jumpLand", "jumpLightPunch", "airstun", "jumpHeavyPunch", "jumpMediumPunch", "spike", "jumpLightKick", "jumpMediumKick", "jumpHeavyKick"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 120
+},
+width: 150,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: (250/3)+120
+},
+width: 150,
+height: (500/3)+30,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: (500/3)+100
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+this.jumped=true
+this.framesCurrent++
+this.jumpLogic()
+if(this.framesCurrent>4){
+this.targetBox=[hBox1, hBox2]
+}
+}
+},
+forwardJump:{
+position: this.position,
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.width,
+height: this.originalHeight/2,
+active: false,
+velocity: {
+x: 10.694,
+y: -39.1
+},
+color: "purple",
+transitions: ["idle", "jumpLand", "jumpLightPunch", "airstun", "jumpHeavyPunch", "jumpMediumPunch", "spike", "jumpLightKick", "jumpMediumKick", "jumpHeavyKick"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 120
+},
+width: 150,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: (250/3)+120
+},
+width: 150,
+height: (500/3)+30,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: (500/3)+100
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+this.jumped=true
+this.framesCurrent++
+this.jumpLogic()
+if(this.framesCurrent>4){
+this.targetBox=[hBox1, hBox2]
+}
+
+}
+},
+backJump:{
+position: this.position,
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.width,
+height: this.originalHeight/2,
+active: false,
+velocity: {
+x: -10.694,
+y: -39.1
+},
+color: "cyan",
+transitions: ["neutralFall", "idle", "jumpLand", "jumpLightPunch", "airstun", "jumpHeavyPunch", "jumpMediumPunch", "spike", "jumpLightKick", "jumpMediumKick", "jumpHeavyKick"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 120
+},
+width: 150,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: (250/3)+120
+},
+width: 150,
+height: (500/3)+30,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: (500/3)+100
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+this.jumped=true
+this.framesCurrent++
+this.jumpLogic()
+if(this.framesCurrent>4){
+this.targetBox=[hBox1, hBox2]
+}
+
+}
+},
+forwardDash:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.originalWidth,
+height: this.originalHeight,
+active: false,
+velocity:{
+x: 30,
+y: 0
+},
+color: "orange",
+transitions: ["idle", "crouch", "hitsun", "hardKnockdown", "crumple"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 0
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 420/3
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -65,
+y: 840/3
+},
+width: 130,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+this.targetBox=[hBox1, hBox2, hBox3]
+this.stunned=true
+this.framesCurrent++
+this.velocity.x=0
+if(this.framesCurrent>=5){
+this.velocity.x=this.direction*20
+}
+else
+{
+this.velocity.x=0
+}
+if(this.framesCurrent>22){
+this.stunned=false
+this.switchState("idle")
+}
+
+//LOGIC END
+}
+},
+
+backDash:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.originalWidth,
+height: this.originalHeight,
+active: false,
+velocity:{
+x: -30,
+y: 0
+},
+color: "orange",
+transitions: ["idle", "crouch", "hitsun", "hardKnockdown", "crumple"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 0
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 420/3
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -65,
+y: 840/3
+},
+width: 130,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+this.targetBox=[hBox1, hBox2, hBox3]
+this.stunned=true
+this.framesCurrent++
+this.velocity.x+=this.direction*1*(590/169)
+if(this.framesCurrent>=11){
+
+}
+if(this.direction==1 && this.velocity.x>=0){
+this.stunned=false
+this.switchState("idle")
+}
+else if(this.direction==-1 && this.velocity.x<=0){
+this.stunned=false
+this.switchState("idle")
+}
+
+//LOGIC END
+}
+},
+crouch:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.width,
+height: this.originalHeight/1.5,
+active: false,
+velocity: {
+x: 0,
+y: 0
+},
+color: "black",
+transitions: ["idle", "walkForward", "walkBack", "crouchLightPunch", "hitstun", "blockstun", "crouchMediumPunch", "crouchHeavyPunch", "DemonFlip", "trip", "hardKnockdown", "crouchLightKick", "crouchMediumKick", "crouchHeavyKick"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 0
+},
+width: 170,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 0
+},
+width: 170,
+height: 500/3+65,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -30,
+y: (500/3)+50
+},
+width: 130,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+this.targetBox=[hBox1, hBox2, hBox3]
+
+
+}
+},
+standLightPunch:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.originalWidth,
+height: this.originalHeight,
+active: false,
+velocity: {
+x: 0,
+y: 0
+},
+color: this.color,
+transitions: ["idle", "hitstun", "trip", "crumple", "hardKnockdown"],
+//FRAME LOGIC HERE
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 0
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 420/3
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -65,
+y: 840/3
+},
+width: 130,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox4=new hurtBox({
+fighter:this,
+offset: {
+x: 35,
+y: 305
+},
+width: 0,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+
+if(this.attack==true && this.framesCurrent<=hitBox.startup){
+this.targetBox[3].width+=140/hitBox.startup
+}
+}
+
+})
+if(this.framesCurrent==0){
+this.targetBox=[hBox1, hBox2, hBox3, hBox4]
+}
+
+//HITBOX PROPERTIES
+const hitBox= new hitbox({
+fighter: this,
+offset: {
+x: 35,
+y: 305
+},
+width: 140,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+currentColor: "pink",
+startup: 4,
+active: 3,
+recovery: 4,
+stun: 10,
+blockstun: 6,
+meter: 7,
+cancelWindow: 4,
+cancels: ["standLightPunch", "standLightKick", "crouchLightPunch", "crouchLightKick"],
+scaling: 0.1,
+strengthLevel: "light",
+damage: 100,
+pushback: 40,
+hitstop: 8,
+prop: "hit",
+type: "high",
+air: false,
+connected: false,
+activation: 0,
+logic: null
+})
+
+this.attack=true
+if(this.framesCurrent==0){this.attackBox=[hitBox]}
+this.framesCurrent++
+this.standardAttackLogic(hitBox)
+if(this.framesCurrent>hitBox.startup && this.framesCurrent<(hitBox.startup+hitBox.active)){
+fake(hitBox);
+
+}
+else if(this.framesCurrent>(hitBox.startup+hitBox.active) && this.framesCurrent>(hitBox.startup+hitBox.active+hitBox.recovery)){
+//FILLER. FILL THIS LATER
+}
+if(this.framesCurrent>(hitBox.startup+hitBox.active+hitBox.recovery)){
+this.attack=false;
+this.switchState("idle");
+}
+}
+},
+jumpLightPunch: {
+position: this.position,
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.width,
+height: this.height,
+active: false,
+velocity: this.velocity,
+color: "orange",
+transitions: ["idle", "airstun", "spike"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 120
+},
+width: 150,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: (250/3)+120
+},
+width: 150,
+height: (500/3)+30,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: 35,
+y: 150
+},
+width: 0,
+height: 150,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+
+if(this.attack==true && this.framesCurrent<=jumpBox.startup){
+hBox3.width+=120/jumpBox.startup
+}
+}
+
+})
+if(this.framesCurrent==0){
+this.targetBox=[hBox1, hBox2, hBox3]
+}
+
+
+
+//JUMPBOX PROPERTIES
+const jumpBox= new hitbox({
+fighter: this,
+offset: {
+x: 70,
+y: 130
+},
+width: 100,
+height: 80,
+velocity: {
+x: 0,
+y: 0
+},
+currentColor: "pink",
+startup: 4,
+active: 3,
+recovery: 8,
+stun: 30,
+blockstun: 6,
+meter: 7,
+cancelWindow: 4,
+cancels: [],
+scaling: 0.1,
+strengthLevel: "light",
+damage: 150,
+pushback: 20,
+hitstop: 14,
+prop: "spike",
+type: "overhead",
+air: true,
+connected: false,
+activation: 0,
+logic: null
+})
+
+//JUMP HANDLING
+
+this.velocity.y+=2.17
+this.jumped=true
+this.attack=true
+
+if(this.pushBox.realPos.y+2.17>=ground){
+this.pushBox.realPos.y=ground
+this.jumped=false
+this.framesCurrent=0;
+this.attack=false;
+this.switchState("idle");
+}
+//JUMP HANDLING END
+//ATTACK HANDLINGosamu
+if(this.framesCurrent==0){this.attackBox=[jumpBox]}
+this.framesCurrent++
+this.standardAttackLogic(jumpBox)
+if(this.framesCurrent>jumpBox.startup && this.framesCurrent<(jumpBox.startup+jumpBox.active)){
+fake(jumpBox);
+
+}
+else if(this.framesCurrent>(jumpBox.startup+jumpBox.active) && this.framesCurrent>(jumpBox.startup+jumpBox.active+jumpBox.recovery)){
+//FILLER. FILL THIS LATER
+}
+if(this.framesCurrent>(jumpBox.startup+jumpBox.active+jumpBox.recovery)){
+
+}
+//ATTACK HANDLING END
+}
+},
+crouchLightPunch:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.width,
+height: this.originalHeight/1.5,
+active: false,
+velocity: {
+x: this.velocity.x,
+y: this.velocity.y
+},
+color: "white",
+transitions: ["crouch", "hitstun", "trip", "crumple", "hardKnockdown", "DemonFlip"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 0
+},
+width: 170,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 0
+},
+width: 170,
+height: 500/3+65,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -30,
+y: (500/3)+50
+},
+width: 130,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox4=new hurtBox({
+fighter:this,
+offset: {
+x: 35,
+y: 0
+},
+width: 0,
+height: 250,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+
+if(this.attack==true && this.framesCurrent<=crouchBox.startup){
+this.targetBox[3].width+=160/crouchBox.startup
+}
+}
+
+})
+if(this.framesCurrent==0){
+this.targetBox=[hBox1, hBox2, hBox3, hBox4]
+}
+
+
+
+//CROUCHBOX PROPERTIES HERE
+const crouchBox=new hitbox({
+fighter: this,
+offset: {
+x: 65,
+y: 200
+},
+width: 135,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+currentColor: "pink",
+startup: 4,
+active: 3,
+recovery: 5,
+stun: 8,
+blockstun: 6,
+meter: 7,
+cancelWindow: 4,
+cancels: ["standLightPunch", "standLightKick", "crouchLightPunch", "crouchLightKick"],
+scaling: 0.1,
+strengthLevel: "light",
+damage: 70,
+pushback: 50,
+hitstop: 10,
+prop: "hit",
+type: "low",
+air: false,
+connected: false,
+activation: 0,
+logic: null
+})
+
+//ATTACK HANDLING
+this.attack=true
+if(this.framesCurrent==0){this.attackBox=[crouchBox]}
+this.framesCurrent++
+this.standardAttackLogic(crouchBox)
+if(this.framesCurrent>crouchBox.startup && this.framesCurrent<(crouchBox.startup+crouchBox.active)){
+fake(crouchBox);
+
+}
+else if(this.framesCurrent>(crouchBox.startup+crouchBox.active) && this.framesCurrent>(crouchBox.startup+crouchBox.active+crouchBox.recovery)){
+//FILLER. FILL THIS LATER
+}
+if(this.framesCurrent>(crouchBox.startup+crouchBox.active+crouchBox.recovery)){
+this.framesCurrent=0;
+this.attack=false;
+this.switchState("crouch");
+}
+}
+},
+//MORE ATTACKS HERE
+
+standMediumPunch:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.originalWidth,
+height: this.originalHeight,
+active: false,
+velocity: {
+x: 0,
+y: 0
+},
+color: this.color,
+transitions: ["idle", "hitstun", "trip", "crumple", "hardKnockdown"],
+//FRAME LOGIC HERE
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 0
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 420/3
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -65,
+y: 840/3
+},
+width: 130,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox4=new hurtBox({
+fighter:this,
+offset: {
+x: 35,
+y: 30
+},
+width: 0,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+
+if(this.attack==true && this.framesCurrent<=hitBox.startup){
+this.targetBox[3].width+=170/hitBox.startup
+}
+}
+
+})
+if(this.framesCurrent==0){
+this.targetBox=[hBox1, hBox2, hBox3, hBox4]
+}
+
+
+
+//HITBOX PROPERTIES
+const hitBox= new hitbox({
+fighter: this,
+offset: {
+x: 35,
+y: 30
+},
+width: 170,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+currentColor: "pink",
+startup: 5,
+active: 4,
+recovery: 9,
+stun: 14,
+blockstun: 6,
+meter: 7,
+cancelWindow: 4,
+cancels: [],
+scaling: 0.1,
+strengthLevel: "medium",
+damage: 100,
+pushback: 40,
+hitstop: 18,
+prop: "stand",
+type: "high",
+air: false,
+connected: false,
+activation: 0,
+logic: null
+})
+
+this.attack=true
+if(this.framesCurrent==0){this.attackBox=[hitBox]}
+this.framesCurrent++
+this.standardAttackLogic(hitBox)
+if(this.framesCurrent>hitBox.startup && this.framesCurrent<(hitBox.startup+hitBox.active)){
+fake(hitBox);
+
+}
+else if(this.framesCurrent>(hitBox.startup+hitBox.active) && this.framesCurrent>(hitBox.startup+hitBox.active+hitBox.recovery)){
+//FILLER. FILL THIS LATER
+}
+if(this.framesCurrent>(hitBox.startup+hitBox.active+hitBox.recovery)){
+this.framesCurrent=0;
+this.attack=false;
+this.switchState("idle");
+}
+}
+},
+jumpMediumPunch: {
+position: this.position,
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.width,
+height: this.height,
+active: false,
+velocity: this.velocity,
+color: "orange",
+transitions: ["idle", "airstun", "spike"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 120
+},
+width: 150,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: (250/3)+120
+},
+width: 150,
+height: (500/3)+30,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: 35,
+y: 150
+},
+width: 0,
+height: 150,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+
+if(this.attack==true && this.framesCurrent<=jumpBox.startup){
+hBox3.width+=120/jumpBox.startup
+}
+}
+
+})
+if(this.framesCurrent==0){
+this.targetBox=[hBox1, hBox2, hBox3]
+}
+
+
+
+//JUMPBOX PROPERTIES
+const jumpBox= new hitbox({
+fighter: this,
+offset: {
+x: 35,
+y: 100
+},
+width: 140,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+currentColor: "pink",
+startup: 5,
+active: 5,
+recovery: 8,
+stun: 30,
+blockstun: 6,
+meter: 7,
+cancelWindow: 4,
+cancels: [],
+scaling: 0.1,
+strengthLevel: "medium",
+damage: 150,
+pushback: 20,
+hitstop: 18,
+prop: "spike",
+type: "overhead",
+air: true,
+connected: false,
+activation: 0,
+logic: null
+})
+
+//JUMP HANDLING
+
+this.velocity.y+=2.17
+this.jumped=true
+this.attack=true
+
+if(this.pushBox.realPos.y+2.17>=ground){
+this.pushBox.realPos.y=ground
+this.jumped=false
+this.framesCurrent=0;
+this.attack=false;
+this.switchState("idle");
+}
+//JUMP HANDLING END
+//ATTACK HANDLING
+if(this.framesCurrent==0){this.attackBox=[jumpBox]}
+this.framesCurrent++
+this.standardAttackLogic(jumpBox)
+if(this.framesCurrent>jumpBox.startup && this.framesCurrent<(jumpBox.startup+jumpBox.active)){
+fake(jumpBox);
+
+}
+else if(this.framesCurrent>(jumpBox.startup+jumpBox.active) && this.framesCurrent>(jumpBox.startup+jumpBox.active+jumpBox.recovery)){
+//FILLER. FILL THIS LATER
+}
+if(this.framesCurrent>(jumpBox.startup+jumpBox.active+jumpBox.recovery)){
+
+}
+//ATTACK HANDLING END
+}
+},
+crouchMediumPunch:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.width,
+height: this.originalHeight/1.5,
+active: false,
+velocity: {
+x: this.velocity.x,
+y: this.velocity.y
+},
+color: "white",
+transitions: ["crouch", "hitstun", "trip", "crumple", "hardKnockdown"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 0
+},
+width: 170,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 0
+},
+width: 170,
+height: 500/3+65,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -30,
+y: (500/3)+50
+},
+width: 130,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox4=new hurtBox({
+fighter:this,
+offset: {
+x: 70,
+y: 170
+},
+width: 0,
+height: 90,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+
+if(this.attack==true && this.framesCurrent<=crouchBox.startup){
+this.targetBox[3].width+=210/crouchBox.startup
+}
+}
+
+})
+if(this.framesCurrent==0){
+this.targetBox=[hBox1, hBox2, hBox3, hBox4]
+}
+
+
+
+//CROUCHBOX PROPERTIES HERE
+const crouchBox=new hitbox({
+fighter: this,
+offset: {
+x: 70,
+y: 190
+},
+width: 210,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+currentColor: "pink",
+startup: 5,
+active: 4,
+recovery: 10,
+stun: 8,
+blockstun: 6,
+meter: 7,
+cancelWindow: 4,
+cancels: [],
+scaling: 0.1,
+strengthLevel: "medium",
+damage: 70,
+pushback: 10,
+hitstop: 18,
+prop: "stand",
+type: "low",
+air: false,
+connected: false,
+activation: 0,
+logic: null
+})
+
+//ATTACK HANDLING
+this.attack=true
+if(this.framesCurrent==0){this.attackBox=[crouchBox]}
+this.framesCurrent++
+this.standardAttackLogic(crouchBox)
+if(this.framesCurrent>crouchBox.startup && this.framesCurrent<(crouchBox.startup+crouchBox.active)){
+fake(crouchBox);
+
+}
+else if(this.framesCurrent>(crouchBox.startup+crouchBox.active) && this.framesCurrent>(crouchBox.startup+crouchBox.active+crouchBox.recovery)){
+//FILLER. FILL THIS LATER
+}
+if(this.framesCurrent>(crouchBox.startup+crouchBox.active+crouchBox.recovery)){
+this.framesCurrent=0;
+this.attack=false;
+this.switchState("crouch");
+}
+}
+},
+
+standHeavyPunch:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.originalWidth,
+height: this.originalHeight,
+active: false,
+velocity: {
+x: 0,
+y: 0
+},
+color: this.color,
+transitions: ["idle", "hitstun", "trip", "crumple", "hardKnockdown"],
+//FRAME LOGIC HERE
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 0
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 420/3
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -65,
+y: 840/3
+},
+width: 130,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox4=new hurtBox({
+fighter:this,
+offset: {
+x: 40,
+y: 260
+},
+width: 0,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+
+if(this.attack==true && this.framesCurrent<=hitBox.startup){
+this.targetBox[3].width+=250/hitBox.startup
+}
+if(this.framesCurrent>=24){
+this.targetBox[3].width=this.targetBox[3].width/2
+}
+}
+
+})
+if(this.framesCurrent==0){
+this.targetBox=[hBox1, hBox2, hBox3, hBox4]
+}
+
+
+
+//HITBOX PROPERTIES
+const hitBox= new hitbox({
+fighter: this,
+offset: {
+x: 40,
+y: 260
+},
+width: 250,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+currentColor: "pink",
+startup: 8,
+active: 5,
+recovery: 22,
+stun: 16,
+blockstun: 6,
+meter: 7,
+cancelWindow: 4,
+cancels: [],
+scaling: 0.1,
+strengthLevel: "heavy",
+damage: 100,
+pushback: 270,
+hitstop: 25,
+prop: "hit",
+type: "high",
+air: false,
+connected: false,
+activation: 0,
+logic: null
+})
+
+this.attack=true
+if(this.framesCurrent==0){this.attackBox=[hitBox]}
+this.framesCurrent++
+this.standardAttackLogic(hitBox)
+if(this.framesCurrent>hitBox.startup && this.framesCurrent<(hitBox.startup+hitBox.active)){
+fake(hitBox);
+
+}
+
+
+else if(this.framesCurrent>(hitBox.startup+hitBox.active) && this.framesCurrent>(hitBox.startup+hitBox.active+hitBox.recovery)){
+//FILLER. FILL THIS LATER
+}
+if(this.framesCurrent>(hitBox.startup+hitBox.active+hitBox.recovery)){
+this.framesCurrent=0;
+this.attack=false;
+this.switchState("idle");
+}
+
+if(this.framesCurrent>=3 && this.framesCurrent<=5){
+this.velocity.x=this.direction*20;
+}
+else{
+this.velocity.x=0;
+}
+}
+},
+jumpHeavyPunch: {
+position: this.position,
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.width,
+height: this.height,
+active: false,
+velocity: this.velocity,
+color: "orange",
+transitions: ["idle", "airstun", "spike"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 120
+},
+width: 150,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: (250/3)+120
+},
+width: 150,
+height: (500/3)+30,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: 35,
+y: 150
+},
+width: 0,
+height: 150,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+
+if(this.attack==true && this.framesCurrent<=jumpBox.startup){
+hBox3.width+=120/jumpBox.startup
+}
+}
+
+})
+if(this.framesCurrent==0){
+this.targetBox=[hBox1, hBox2, hBox3]
+}
+
+
+//JUMPBOX PROPERTIES
+const jumpBox= new hitbox({
+fighter: this,
+offset: {
+x: 35,
+y: 100
+},
+width: 140,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+currentColor: "pink",
+startup: 6,
+active: 4,
+recovery: (8/0),
+stun: 30,
+blockstun: 6,
+meter: 7,
+cancelWindow: 4,
+cancels: [],
+scaling: 0.1,
+strengthLevel: "heavy",
+damage: 150,
+pushback: 20,
+hitstop: 25,
+prop: "spike",
+type: "overhead",
+air: true,
+connected: false,
+activation: 0,
+logic: null
+})
+
+//JUMP HANDLING
+
+this.velocity.y+=2.17
+this.jumped=true
+this.attack=true
+
+if(this.pushBox.realPos.y+2.17>=ground){
+this.pushBox.realPos.y=ground
+this.jumped=false
+this.framesCurrent=0;
+this.attack=false;
+this.switchState("idle");
+}
+//JUMP HANDLING END
+//ATTACK HANDLING
+if(this.framesCurrent==0){this.attackBox=[jumpBox]}
+this.framesCurrent++
+this.standardAttackLogic(jumpBox)
+if(this.framesCurrent>jumpBox.startup && this.framesCurrent<(jumpBox.startup+jumpBox.active)){
+fake(jumpBox);
+
+}
+else if(this.framesCurrent>(jumpBox.startup+jumpBox.active) && this.framesCurrent>(jumpBox.startup+jumpBox.active+jumpBox.recovery)){
+//FILLER. FILL THIS LATER
+}
+if(this.framesCurrent>(jumpBox.startup+jumpBox.active+jumpBox.recovery)){
+this.framesCurrent=0;
+this.attack=false;
+}
+//ATTACK HANDLING END
+}
+},
+crouchHeavyPunch:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.width,
+height: this.originalHeight/2,
+active: false,
+velocity: {
+x: this.velocity.x,
+y: this.velocity.y
+},
+color: "white",
+transitions: ["crouch", "hitstun", "trip", "crumple", "hardKnockdown"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 0
+},
+width: 170,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 0
+},
+width: 170,
+height: 500/3+65,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -30,
+y: (500/3)+50
+},
+width: 130,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+if(this.framesCurrent==9){
+this.targetBox[2].height+=50
+this.targetBox[2].width+=30
+this.targetBox[2].offset.x-=20
+}
+}
+
+})
+
+const hBox4=new hurtBox({
+fighter:this,
+offset: {
+x: 60,
+y: 220
+},
+width: 140,
+height: 90,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+
+
+if(this.framesCurrent>6 && this.framesCurrent<9){
+this.targetBox[3].offset.y+=20
+}
+}
+
+})
+if(this.framesCurrent==0){
+this.targetBox=[hBox1, hBox2, hBox3, hBox4]
+}
+
+
+
+//CROUCHBOX PROPERTIES HERE
+const crouchBox= new hitbox({
+fighter: this,
+offset: {
+x: 60,
+y: 220
+},
+width: 130,
+height: 90,
+velocity: {
+x: 0,
+y: 0
+},
+currentColor: "pink",
+startup: 6,
+active: 5,
+recovery: 19,
+stun: 11,
+blockstun: 6,
+meter: 7,
+cancelWindow: 4,
+cancels: [],
+scaling: 0.1,
+strengthLevel: "heavy",
+damage: 70,
+pushback: 100,
+hitstop: 25,
+prop: "hit",
+type: "mid",
+air: false,
+connected: false,
+activation: 0,
+logic: ()=>{
+if(this.framesCurrent>6 && this.framesCurrent<9){
+this.attackBox[0].offset.y+=20
+}
+else if(this.framesCurrent==9){
+this.attackBox[0].offset.x=50
+this.attackBox[0].offset.y=300
+this.attackBox[0].height=130
+this.attackBox[0].width=100
+
+}
+else if(this.framesCurrent>9){
+this.attackBox[0].offset.x=0
+this.attackBox[0].offset.y=300
+this.attackBox[0].height=130
+this.attackBox[0].width=100
+}
+}
+})
+
+//ATTACK HANDLING
+this.attack=true
+if(this.framesCurrent==0){this.attackBox=[crouchBox]}
+this.framesCurrent++
+this.standardAttackLogic(crouchBox)
+if(this.framesCurrent>crouchBox.startup && this.framesCurrent<(crouchBox.startup+crouchBox.active)){
+fake(crouchBox);
+
+}
+else if(this.framesCurrent>(crouchBox.startup+crouchBox.active) && this.framesCurrent>(crouchBox.startup+crouchBox.active+crouchBox.recovery)){
+//FILLER. FILL THIS LATER
+}
+if(this.framesCurrent>(crouchBox.startup+crouchBox.active+crouchBox.recovery)){
+this.framesCurrent=0;
+this.attack=false;
+this.switchState("crouch");
+}
+}
+},
+standLightKick:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.originalWidth,
+height: this.originalHeight,
+active: false,
+velocity: {
+x: 0,
+y: 0
+},
+color: this.color,
+transitions: ["idle", "hitstun", "trip", "crumple", "hardKnockdown"],
+//FRAME LOGIC HERE
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 0
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 420/3
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -65,
+y: 840/3
+},
+width: 130,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox4=new hurtBox({
+fighter:this,
+offset: {
+x: 35,
+y: 300
+},
+width: 0,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+
+if(this.attack==true && this.framesCurrent<=hitBox.startup){
+this.targetBox[3].width+=140/hitBox.startup
+}
+}
+
+})
+if(this.framesCurrent==0){
+this.targetBox=[hBox1, hBox2, hBox3, hBox4]
+}
+
+//HITBOX PROPERTIES
+const hitBox= new hitbox({
+fighter: this,
+offset: {
+x: 35,
+y: 300
+},
+width: 140,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+currentColor: "pink",
+startup: 4,
+active: 3,
+recovery: 4,
+stun: 8,
+blockstun: 6,
+meter: 7,
+cancelWindow: 4,
+cancels: [],
+scaling: 0.1,
+strengthLevel: "light",
+damage: 100,
+pushback: 40,
+hitstop: 10,
+prop: "hit",
+type: "high",
+air: false,
+connected: false,
+activation: 0,
+logic: null
+})
+
+this.attack=true
+if(this.framesCurrent==0){this.attackBox=[hitBox]}
+this.framesCurrent++
+this.standardAttackLogic(hitBox)
+if(this.framesCurrent>hitBox.startup && this.framesCurrent<(hitBox.startup+hitBox.active)){
+fake(hitBox);
+
+}
+else if(this.framesCurrent>(hitBox.startup+hitBox.active) && this.framesCurrent>(hitBox.startup+hitBox.active+hitBox.recovery)){
+//FILLER. FILL THIS LATER
+}
+if(this.framesCurrent>(hitBox.startup+hitBox.active+hitBox.recovery)){
+this.attack=false;
+this.switchState("idle");
+}
+}
+},
+jumpLightKick: {
+position: this.position,
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.width,
+height: this.height,
+active: false,
+velocity: this.velocity,
+color: "orange",
+transitions: ["idle", "airstun", "spike"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 0
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 250/3
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 500/3
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox4=new hurtBox({
+fighter:this,
+offset: {
+x: 35,
+y: 100
+},
+width: 0,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+
+if(this.attack==true && this.framesCurrent<=jumpBox.startup){
+this.targetBox[3].width+=140/jumpBox.startup
+}
+}
+
+})
+if(this.framesCurrent==0){
+this.targetBox=[hBox1, hBox2, hBox3, hBox4]
+}
+
+
+
+//JUMPBOX PROPERTIES
+const jumpBox= new hitbox({
+fighter: this,
+offset: {
+x: 35,
+y: 100
+},
+width: 140,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+currentColor: "pink",
+startup: 4,
+active: 3,
+recovery: 8,
+stun: 30,
+blockstun: 6,
+meter: 7,
+cancelWindow: 4,
+cancels: [],
+scaling: 0.1,
+strengthLevel: "light",
+damage: 150,
+pushback: 20,
+hitstop: 10,
+prop: "spike",
+type: "overhead",
+air: true,
+connected: false,
+activation: 0,
+logic: null
+})
+
+//JUMP HANDLING
+
+this.velocity.y+=2.17
+this.jumped=true
+this.attack=true
+
+if(this.pushBox.realPos.y+2.17>=ground){
+this.pushBox.realPos.y=ground
+this.jumped=false
+this.framesCurrent=0;
+this.attack=false;
+this.switchState("idle");
+}
+//JUMP HANDLING END
+//ATTACK HANDLINGosamu
+if(this.framesCurrent==0){this.attackBox=[jumpBox]}
+this.framesCurrent++
+this.standardAttackLogic(jumpBox)
+if(this.framesCurrent>jumpBox.startup && this.framesCurrent<(jumpBox.startup+jumpBox.active)){
+fake(jumpBox);
+
+}
+else if(this.framesCurrent>(jumpBox.startup+jumpBox.active) && this.framesCurrent>(jumpBox.startup+jumpBox.active+jumpBox.recovery)){
+//FILLER. FILL THIS LATER
+}
+if(this.framesCurrent>(jumpBox.startup+jumpBox.active+jumpBox.recovery)){
+
+}
+//ATTACK HANDLING END
+}
+},
+crouchLightKick:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.width,
+height: this.originalHeight/1.5,
+active: false,
+velocity: {
+x: this.velocity.x,
+y: this.velocity.y
+},
+color: "white",
+transitions: ["crouch", "hitstun", "trip", "crumple", "hardKnockdown", "DemonFlip"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 0
+},
+width: 170,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 0
+},
+width: 170,
+height: 500/3+65,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -30,
+y: (500/3)+50
+},
+width: 130,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox4=new hurtBox({
+fighter:this,
+offset: {
+x: 35,
+y: 0
+},
+width: 0,
+height: 70,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+
+if(this.attack==true && this.framesCurrent<=crouchBox.startup){
+this.targetBox[3].width+=140/crouchBox.startup
+}
+}
+
+})
+if(this.framesCurrent==0){
+this.targetBox=[hBox1, hBox2, hBox3, hBox4]
+}
+
+
+
+//CROUCHBOX PROPERTIES HERE
+const crouchBox=new hitbox({
+fighter: this,
+offset: {
+x: 35,
+y: 0
+},
+width: 140,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+currentColor: "pink",
+startup: 5,
+active: 3,
+recovery: 7,
+stun: 8,
+blockstun: 6,
+meter: 7,
+cancelWindow: 4,
+cancels: [],
+scaling: 0.1,
+strengthLevel: "light",
+damage: 70,
+pushback: 10,
+hitstop: 10,
+prop: "hit",
+type: "low",
+air: false,
+connected: false,
+activation: 0,
+logic: null
+})
+
+//ATTACK HANDLING
+this.attack=true
+if(this.framesCurrent==0){this.attackBox=[crouchBox]}
+this.framesCurrent++
+this.standardAttackLogic(crouchBox)
+if(this.framesCurrent>crouchBox.startup && this.framesCurrent<(crouchBox.startup+crouchBox.active)){
+fake(crouchBox);
+
+}
+else if(this.framesCurrent>(crouchBox.startup+crouchBox.active) && this.framesCurrent>(crouchBox.startup+crouchBox.active+crouchBox.recovery)){
+//FILLER. FILL THIS LATER
+}
+if(this.framesCurrent>(crouchBox.startup+crouchBox.active+crouchBox.recovery)){
+this.framesCurrent=0;
+this.attack=false;
+this.switchState("crouch");
+}
+}
+},
+//MORE ATTACKS HERE
+
+standMediumKick:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.originalWidth,
+height: this.originalHeight,
+active: false,
+velocity: {
+x: 0,
+y: 0
+},
+color: this.color,
+transitions: ["idle", "hitstun", "trip", "crumple", "hardKnockdown"],
+//FRAME LOGIC HERE
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 0
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 420/3
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -65,
+y: 840/3
+},
+width: 130,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox4=new hurtBox({
+fighter:this,
+offset: {
+x: 35,
+y: 30
+},
+width: 0,
+height: 250,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+
+if(this.attack==true && this.framesCurrent<=hitBox.startup){
+this.targetBox[3].width+=280/hitBox.startup
+}
+if(this.attack==true && this.framesCurrent==19){
+this.targetBox[3].width=this.targetBox[3].width/2
+}
+}
+
+})
+if(this.framesCurrent==0){
+this.targetBox=[hBox1, hBox2, hBox3, hBox4]
+}
+
+
+
+//HITBOX PROPERTIES
+const hitBox= new hitbox({
+fighter: this,
+offset: {
+x: 45,
+y: 190
+},
+width: 220,
+height: 70,
+velocity: {
+x: 0,
+y: 0
+},
+currentColor: "pink",
+startup: 7,
+active: 4,
+recovery: 17,
+stun: 14,
+blockstun: 6,
+meter: 7,
+cancelWindow: 4,
+cancels: [],
+scaling: 0.1,
+strengthLevel: "medium",
+damage: 100,
+pushback: 40,
+hitstop: 18,
+prop: "stand",
+type: "high",
+air: false,
+connected: false,
+activation: 0,
+logic: null
+})
+
+this.attack=true
+if(this.framesCurrent==0){this.attackBox=[hitBox]}
+this.framesCurrent++
+this.standardAttackLogic(hitBox)
+if(this.framesCurrent>hitBox.startup && this.framesCurrent<(hitBox.startup+hitBox.active)){
+fake(hitBox);
+
+}
+else if(this.framesCurrent>(hitBox.startup+hitBox.active) && this.framesCurrent>(hitBox.startup+hitBox.active+hitBox.recovery)){
+//FILLER. FILL THIS LATER
+}
+if(this.framesCurrent>(hitBox.startup+hitBox.active+hitBox.recovery)){
+this.framesCurrent=0;
+this.attack=false;
+this.switchState("idle");
+}
+}
+},
+jumpMediumKick: {
+position: this.position,
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.width,
+height: this.height,
+active: false,
+velocity: this.velocity,
+color: "orange",
+transitions: ["idle", "airstun", "spike"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 0
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 250/3
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 500/3
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox4=new hurtBox({
+fighter:this,
+offset: {
+x: 35,
+y: 100
+},
+width: 0,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+
+if(this.attack==true && this.framesCurrent<=jumpBox.startup){
+this.targetBox[3].width+=140/jumpBox.startup
+}
+}
+
+})
+if(this.framesCurrent==0){
+this.targetBox=[hBox1, hBox2, hBox3, hBox4]
+}
+
+
+
+//JUMPBOX PROPERTIES
+const jumpBox= new hitbox({
+fighter: this,
+offset: {
+x: 35,
+y: 100
+},
+width: 140,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+currentColor: "pink",
+startup: 5,
+active: 5,
+recovery: 8,
+stun: 30,
+blockstun: 6,
+meter: 7,
+cancelWindow: 4,
+cancels: [],
+scaling: 0.1,
+strengthLevel: "medium",
+damage: 150,
+pushback: 20,
+hitstop: 18,
+prop: "spike",
+type: "overhead",
+air: true,
+connected: false,
+activation: 0,
+logic: null
+})
+
+//JUMP HANDLING
+
+this.velocity.y+=2.17
+this.jumped=true
+this.attack=true
+
+if(this.pushBox.realPos.y+2.17>=ground){
+this.pushBox.realPos.y=ground
+this.jumped=false
+this.framesCurrent=0;
+this.attack=false;
+this.switchState("idle");
+}
+//JUMP HANDLING END
+//ATTACK HANDLING
+if(this.framesCurrent==0){this.attackBox=[jumpBox]}
+this.framesCurrent++
+this.standardAttackLogic(jumpBox)
+if(this.framesCurrent>jumpBox.startup && this.framesCurrent<(jumpBox.startup+jumpBox.active)){
+fake(jumpBox);
+
+}
+else if(this.framesCurrent>(jumpBox.startup+jumpBox.active) && this.framesCurrent>(jumpBox.startup+jumpBox.active+jumpBox.recovery)){
+//FILLER. FILL THIS LATER
+}
+if(this.framesCurrent>(jumpBox.startup+jumpBox.active+jumpBox.recovery)){
+
+}
+//ATTACK HANDLING END
+}
+},
+crouchMediumKick:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.width,
+height: this.originalHeight/1.5,
+active: false,
+velocity: {
+x: this.velocity.x,
+y: this.velocity.y
+},
+color: "white",
+transitions: ["crouch", "hitstun", "trip", "crumple", "hardKnockdown"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -140,
+y: 0
+},
+width: 260,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+if(this.framesCurrent<=crouchBox.startup){
+hBox1.offset.x=0-(this.framesCurrent*(140/crouchBox.startup))
+}
+
+}
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -140,
+y: 250/3
+},
+width: 220,
+height: 70,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+if(this.framesCurrent<=crouchBox.startup){
+hBox2.offset.x=-90-(this.framesCurrent*((140-90)/crouchBox.startup))
+hBox2.height=150-(this.framesCurrent*((150-70)/crouchBox.startup))
+}
+
+}
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -60,
+y: (500/3)-20
+},
+width: 150,
+height: (250/3)+20,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox4=new hurtBox({
+fighter:this,
+offset: {
+x: 120,
+y: 0
+},
+width: 0,
+height: 80,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+
+if(this.attack==true && this.framesCurrent<=crouchBox.startup){
+this.targetBox[3].width+=180/crouchBox.startup
+}
+}
+
+})
+if(this.framesCurrent==0){
+this.targetBox=[hBox1, hBox2, hBox3, hBox4]
+}
+
+
+
+//CROUCHBOX PROPERTIES HERE
+const crouchBox=new hitbox({
+fighter: this,
+offset: {
+x: 130,
+y: 0
+},
+width: 160,
+height: 60,
+velocity: {
+x: 0,
+y: 0
+},
+currentColor: "pink",
+startup: 6,
+active: 5,
+recovery: 17,
+stun: 8,
+blockstun: 6,
+meter: 7,
+cancelWindow: 4,
+cancels: [],
+scaling: 0.1,
+strengthLevel: "medium",
+damage: 70,
+pushback: 10,
+hitstop: 18,
+prop: "stand",
+type: "low",
+air: false,
+connected: false,
+activation: 0,
+logic: null
+})
+
+//ATTACK HANDLING
+this.attack=true
+if(this.framesCurrent==0){this.attackBox=[crouchBox]}
+this.framesCurrent++
+this.standardAttackLogic(crouchBox)
+if(this.framesCurrent>crouchBox.startup && this.framesCurrent<(crouchBox.startup+crouchBox.active)){
+fake(crouchBox);
+
+}
+else if(this.framesCurrent>(crouchBox.startup+crouchBox.active) && this.framesCurrent>(crouchBox.startup+crouchBox.active+crouchBox.recovery)){
+//FILLER. FILL THIS LATER
+}
+if(this.framesCurrent>(crouchBox.startup+crouchBox.active+crouchBox.recovery)){
+this.framesCurrent=0;
+this.attack=false;
+this.switchState("crouch");
+}
+}
+},
+
+standHeavyKick:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.originalWidth,
+height: this.originalHeight,
+active: false,
+velocity: {
+x: 0,
+y: 0
+},
+color: this.color,
+transitions: ["idle", "hitstun", "trip", "crumple", "hardKnockdown"],
+//FRAME LOGIC HERE
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 0
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 420/3
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -65,
+y: 840/3
+},
+width: 130,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox4=new hurtBox({
+fighter:this,
+offset: {
+x: 35,
+y: 30
+},
+width: 0,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+
+if(this.attack==true && this.framesCurrent<=hitBox.startup){
+this.targetBox[3].width+=170/hitBox.startup
+}
+}
+
+})
+if(this.framesCurrent==0){
+this.targetBox=[hBox1, hBox2, hBox3, hBox4]
+}
+
+
+
+//HITBOX PROPERTIES
+const hitBox= new hitbox({
+fighter: this,
+offset: {
+x: 35,
+y: 30
+},
+width: 170,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+currentColor: "pink",
+startup: 9,
+active: 5,
+recovery: 22,
+stun: 16,
+blockstun: 6,
+meter: 7,
+cancelWindow: 4,
+cancels: [],
+scaling: 0.1,
+strengthLevel: "heavy",
+damage: 100,
+pushback: 40,
+hitstop: 25,
+prop: "hit",
+type: "high",
+air: false,
+connected: false,
+activation: 0,
+logic: null
+})
+
+this.attack=true
+if(this.framesCurrent==0){this.attackBox=[hitBox]}
+this.framesCurrent++
+this.standardAttackLogic(hitBox)
+if(this.framesCurrent>hitBox.startup && this.framesCurrent<(hitBox.startup+hitBox.active)){
+fake(hitBox);
+
+}
+else if(this.framesCurrent>(hitBox.startup+hitBox.active) && this.framesCurrent>(hitBox.startup+hitBox.active+hitBox.recovery)){
+//FILLER. FILL THIS LATER
+}
+if(this.framesCurrent>(hitBox.startup+hitBox.active+hitBox.recovery)){
+this.framesCurrent=0;
+this.attack=false;
+this.switchState("idle");
+}
+}
+},
+jumpHeavyKick: {
+position: this.position,
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.width,
+height: this.height,
+active: false,
+velocity: this.velocity,
+color: "orange",
+transitions: ["idle", "airstun", "spike"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 0
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 250/3
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 500/3
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox4=new hurtBox({
+fighter:this,
+offset: {
+x: 35,
+y: 100
+},
+width: 0,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+
+if(this.attack==true && this.framesCurrent<=jumpBox.startup){
+this.targetBox[3].width+=140/jumpBox.startup
+}
+}
+
+})
+if(this.framesCurrent==0){
+this.targetBox=[hBox1, hBox2, hBox3, hBox4]
+}
+
+
+//JUMPBOX PROPERTIES
+const jumpBox= new hitbox({
+fighter: this,
+offset: {
+x: 35,
+y: 100
+},
+width: 140,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+currentColor: "pink",
+startup: 6,
+active: 4,
+recovery: (8/0),
+stun: 30,
+blockstun: 6,
+meter: 7,
+cancelWindow: 4,
+cancels: [],
+scaling: 0.1,
+strengthLevel: "heavy",
+damage: 150,
+pushback: 20,
+hitstop: 25,
+prop: "spike",
+type: "overhead",
+air: true,
+connected: false,
+activation: 0,
+logic: null
+})
+
+//JUMP HANDLING
+
+this.velocity.y+=2.17
+this.jumped=true
+this.attack=true
+
+if(this.pushBox.realPos.y+2.17>=ground){
+this.pushBox.realPos.y=ground
+this.jumped=false
+this.framesCurrent=0;
+this.attack=false;
+this.switchState("idle");
+}
+//JUMP HANDLING END
+//ATTACK HANDLING
+if(this.framesCurrent==0){this.attackBox=[jumpBox]}
+this.framesCurrent++
+this.standardAttackLogic(jumpBox)
+if(this.framesCurrent>jumpBox.startup && this.framesCurrent<(jumpBox.startup+jumpBox.active)){
+fake(jumpBox);
+
+}
+else if(this.framesCurrent>(jumpBox.startup+jumpBox.active) && this.framesCurrent>(jumpBox.startup+jumpBox.active+jumpBox.recovery)){
+//FILLER. FILL THIS LATER
+}
+if(this.framesCurrent>(jumpBox.startup+jumpBox.active+jumpBox.recovery)){
+this.framesCurrent=0;
+this.attack=false;
+}
+//ATTACK HANDLING END
+}
+},
+crouchHeavyKick:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.width,
+height: this.originalHeight/2,
+active: false,
+velocity: {
+x: this.velocity.x,
+y: this.velocity.y
+},
+color: "white",
+transitions: ["crouch", "hitstun", "trip", "crumple", "hardKnockdown"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 0
+},
+width: 170,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 0
+},
+width: 170,
+height: 500/3+65,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+if(this.framesCurrent==crouchBox.startup){
+hBox2.height-=50
+}
+
+}
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -30,
+y: (500/3)+50
+},
+width: 130,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+if(this.framesCurrent<crouchBox.startup){
+hBox3.offset.y-=50/crouchBox.startup
+}
+}
+
+})
+
+const hBox4=new hurtBox({
+fighter:this,
+offset: {
+x: 110,
+y: 0
+},
+width: 0,
+height: 110,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+
+if(this.attack==true && this.framesCurrent<=crouchBox.startup){
+hBox4.width+=220/crouchBox.startup
+}
+}
+
+})
+if(this.framesCurrent==0){
+this.targetBox=[hBox1, hBox2, hBox3, hBox4]
+}
+
+
+
+//CROUCHBOX PROPERTIES HERE
+const crouchBox= new hitbox({
+fighter: this,
+offset: {
+x: 100,
+y: 0
+},
+width: 220,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+currentColor: "pink",
+startup: 7,
+active: 5,
+recovery: 29,
+stun: 11,
+blockstun: 6,
+meter: 7,
+cancelWindow: 4,
+cancels: [],
+scaling: 0.1,
+strengthLevel: "heavy",
+damage: 70,
+pushback: 10,
+hitstop: 25,
+prop: "trip",
+type: "low",
+air: false,
+connected: false,
+activation: 0,
+logic: null
+})
+
+//ATTACK HANDLING
+this.attack=true
+if(this.framesCurrent==0){this.attackBox=[crouchBox]}
+this.framesCurrent++
+this.standardAttackLogic(crouchBox)
+if(this.framesCurrent>crouchBox.startup && this.framesCurrent<(crouchBox.startup+crouchBox.active)){
+fake(crouchBox);
+
+}
+else if(this.framesCurrent>(crouchBox.startup+crouchBox.active) && this.framesCurrent>(crouchBox.startup+crouchBox.active+crouchBox.recovery)){
+//FILLER. FILL THIS LATER
+}
+if(this.framesCurrent>(crouchBox.startup+crouchBox.active+crouchBox.recovery)){
+this.framesCurrent=0;
+this.attack=false;
+this.switchState("crouch");
+}
+}
+},
+
+
+//SPECIAL START
+//HADOKEN START
+Hadoken:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.originalWidth,
+height: this.originalHeight,
+active: false,
+velocity: {
+x: 0,
+y: 0
+},
+color: "black",
+transitions: ["idle", "hitstun", "trip", "crumple", "hardKnockdown"],
+//FRAME LOGIC HERE
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 0
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+if(this.framesCurrent>10 && this.framesCurrent<=40){
+this.targetBox[0].offset.x=35
+}
+else{
+this.targetBox[0].offset.x=-50
+}
+
+}
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 250/3
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+if(this.framesCurrent>10 && this.framesCurrent<=40){
+this.targetBox[1].offset.x=-10
+this.targetBox[1].width=150
+}
+else{
+this.targetBox[1].offset.x=-50
+this.targetBox[1].width=100
+}
+
+}
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 500/3
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox4=new hurtBox({
+fighter:this,
+offset: {
+x: 35,
+y: 30
+},
+width: 0,
+height: 75,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+if(this.framesCurrent>10 && this.framesCurrent<=40){
+this.targetBox[3].offset.x=50
+this.targetBox[3].offset.y=250/3
+this.targetBox[3].width=200
+}
+else{
+this.targetBox[3].offset.x=35
+this.targetBox[3].width=0
+}
+
+}
+
+})
+if(this.framesCurrent==0){
+this.targetBox=[hBox1, hBox2, hBox3, hBox4]
+}
+
+
+
+//HITBOX PROPERTIES
+const hitBox= new hitbox({
+fighter: null,
+offset: {
+x: 0,
+y: 0
+},
+width: 60,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+currentColor: "pink",
+startup: 0,
+active: 4/0,
+recovery: 0,
+stun: 16,
+blockstun: 6,
+meter: 7,
+cancelWindow: 4,
+cancels: [],
+scaling: 0.1,
+strengthLevel: "light",
+damage: 100,
+pushback: 40,
+hitstop: 3,
+prop: "hit",
+type: "high",
+air: false,
+connected: false,
+activation: 0,
+logic: null
+})
+let midpoint=this.position.x
+let hPoint=this.position.y-(2*(250/3))
+if(this.direction==1){
+
+}
+const hadoken=new Projectile({
+thrower: this,
+target: null,
+position: {
+x: midpoint+this.direction*50,
+y: hPoint
+},
+velocity:{
+x: 10,
+y: 0
+},
+width: 60,
+height: 50,
+duration: 5/0,
+counter: 0,
+hitA: true, 
+hits: 1, 
+hitboxes: [hitBox],
+hurtboxes: [], 
+linger: false, 
+direction: this.direction, 
+logic: null})
+
+this.attack=true
+if(this.framesCurrent==10){this.projectiles=[hadoken]}
+this.framesCurrent++
+this.standardAttackLogic(hitBox)
+if(this.framesCurrent>hitBox.startup && this.framesCurrent<(hitBox.startup+hitBox.active)){
+fake(hitBox);
+
+}
+else if(this.framesCurrent>(hitBox.startup+hitBox.active) && this.framesCurrent>(hitBox.startup+hitBox.active+hitBox.recovery)){
+//FILLER. FILL THIS LATER
+}
+if(this.framesCurrent>41){
+this.framesCurrent=0;
+this.attack=false;
+this.switchState("idle");
+}
+}
+},
+
+
+
+
+//HADOKEN END
+DemonFlip:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.width,
+height: this.originalHeight/2,
+active: false,
+velocity: {
+x: 7,
+y: -40
+},
+color: "purple",
+transitions: ["idle", "airstun", "spike"],
+conditional: "none",
+logic: ()=>{
+this.attack=true
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 0
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 250/3
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 500/3
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+this.targetBox=[hBox1, hBox2, hBox3]
+let acceptedFollow=this.followUps.filter(follow => follow.exec==true)
+if(acceptedFollow.length==0){
+this.velocity.y+=2.17
+this.jumped=true
+}
+if(this.pushBox.bottom==ground && this.velocity.y<0){
+this.position.y-=250;
+this.pushBox.update();
+}
+if(this.pushBox.bottom>=ground && this.velocity.y>0){
+this.pushBox.realPos.y=ground;
+this.velocity.y=0
+this.velocity.x=0
+//this.switchState("idle");
+}
+if(this.velocity.y>=0 && this.followUps.length==0){
+this.followUps=[{button: "LP", exec: false}, {button: "MP", exec: false}, {button: "HP", exec: false}]
+}
+
+//FOLLOW UP LOGIC
+//DEMON FLIP SWEEP
+if(this.pushBox.realPos.y==ground && acceptedFollow.length==0){
+this.followUps=[{button: "locked", exec: false}]
+this.velocity.y=0
+this.velocity.x=0
+this.position.y=ground;
+this.height=this.originalHeight/2
+const hBox4=new hurtBox({
+fighter:this,
+offset: {
+x: 35,
+y: 0
+},
+width: 0,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+
+if(this.attack==true && this.framesCurrent<=crouchBox.startup){
+this.targetBox[3].width+=140/crouchBox.startup
+}
+}
+
+})
+if(this.framesCurrent==0){
+this.targetBox=[hBox1, hBox2, hBox3, hBox4]
+}
+
+
+
+//CROUCHBOX PROPERTIES HERE
+const crouchBox= new hitbox({
+fighter: this,
+offset: {
+x: 35,
+y: 0
+},
+width: 140,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+currentColor: "pink",
+startup: 5,
+active: 5,
+recovery: 19,
+stun: 11,
+blockstun: 6,
+meter: 7,
+cancelWindow: 4,
+cancels: [],
+scaling: 0.1,
+strengthLevel: "heavy",
+damage: 70,
+pushback: 10,
+hitstop: 25,
+prop: "trip",
+type: "low",
+air: false,
+connected: false,
+activation: 0,
+logic: null
+})
+
+//ATTACK HANDLING
+this.attack=true
+if(this.framesCurrent==0){this.attackBox=[crouchBox]}
+this.framesCurrent++
+this.standardAttackLogic(crouchBox)
+if(this.framesCurrent>crouchBox.startup && this.framesCurrent<(crouchBox.startup+crouchBox.active)){
+fake(crouchBox);
+
+}
+else if(this.framesCurrent>(crouchBox.startup+crouchBox.active) && this.framesCurrent>(crouchBox.startup+crouchBox.active+crouchBox.recovery)){
+//FILLER. FILL THIS LATER
+}
+if(this.framesCurrent>(crouchBox.startup+crouchBox.active+crouchBox.recovery)){
+this.followUps=[]
+this.framesCurrent=0;
+this.attack=false;
+this.jumped=false;
+this.switchState("idle");
+}
+
+}
+//SWEEP END
+//DIVEKICK START
+if(acceptedFollow.length>0 && acceptedFollow[0].button=="LP"){
+//console.log("Dive")
+this.velocity.y=0
+this.velocity.x=0
+//DIVEBOX PROPERTIES HERE
+const crouchBox= new hitbox({
+fighter: this,
+offset: {
+x: 25,
+y: 100
+},
+width: 75,
+height: 75,
+velocity: {
+x: 0,
+y: 0
+},
+currentColor: "pink",
+startup: 5,
+active: 5/0,
+recovery: 19,
+stun: 11,
+blockstun: 6,
+meter: 7,
+cancelWindow: 4,
+cancels: [],
+scaling: 0.1,
+strengthLevel: "heavy",
+damage: 70,
+pushback: 10,
+hitstop: 18,
+prop: "trip",
+type: "high",
+air: true,
+connected: false,
+activation: 0,
+logic: null
+})
+
+this.attack=true
+if(this.framesCurrent==0){this.attackBox=[crouchBox]}
+this.framesCurrent++
+this.standardAttackLogic(crouchBox)
+if(this.framesCurrent>crouchBox.startup && this.framesCurrent<(crouchBox.startup+crouchBox.active)){
+this.velocity.y=20
+this.velocity.x=this.direction*20
+
+}
+else if(this.framesCurrent>(crouchBox.startup+crouchBox.active) && this.framesCurrent>(crouchBox.startup+crouchBox.active+crouchBox.recovery)){
+//FILLER. FILL THIS LATER
+}
+if(this.pushBox.realPos.y>=ground){
+this.velocity.y=0
+this.velocity.x=0
+this.framesCurrent=0;
+this.followUps=[]
+this.attack=false;
+this.jumped=false;
+this.switchState("idle");
+}
+
+}
+
+//DIVEKICK END
+
+
+//FOLLOW UP LOGIC END
+}
+},
+
+//ATTACKS END
+}
+//BASIC STATES END
+this.attackBox=attackBox
+this.attackState=attackState;
+this.hitState=hitState;
+this.deathState=deathState;
+}
+}
+//SECOND CHILD CLASS
+class Masters extends Box{
+constructor({position, originalPosition, width, height, color="red", velocity, gravity=0.7, direction, atWall=false, jumped=false, crouched=false, maxHealth, framesCurrent=0, stunFrames, attack=false, stunned=false, hitStopped=false, meter=0, buttonCharge, downCharge=0, backCharge=0, followUps, currentState="idle", targetBox,  projectiles=[], maxProject=1, uniState, attackBox=[], attackState, hitState, deathState}){
+super({position, originalPosition, width, height, color, velocity, gravity, direction, atWall, jumped, crouched, maxHealth, framesCurrent, stunFrames, attack, stunned, hitStopped, meter, buttonCharge, downCharge, backCharge, followUps, currentState, targetBox,  projectiles, maxProject, uniState})
+this.name="Masters";
+
+//CANCELS HERE
+this.cancels={}
+
+
+//CANCELS END
+//MOVE DETAILS HERE
+this.startupInfo=[
+{
+name: "GouHadou",
+button: "P",
+inputs: ["2365236", "2363236"],
+window: 25,
+meterReq: 100,
+airState: false,
+charge: 0,
+buttonCharge: 0
+},
+{
+name: "Shoryuken",
+button: "P",
+inputs: ["65256", "6523", "623", "6235", "6236", "62365"],
+window: 18,
+meterReq: 0,
+airState: false,
+charge: 0,
+buttonCharge: 0
+},
+{
+name: "Tatsumaki",
+button: "P",
+inputs: ["214", "2145"],
+window: 14,
+meterReq: 0,
+airState: false,
+charge: 0,
+buttonCharge: 0
+},
+{
+name: "ZankuHadoken",
+button: "P",
+inputs: ["236", "2365"],
+window: 14,
+meterReq: 0,
+airState: true,
+charge: 0,
+buttonCharge: 0
+},
+{
+name: "Hadoken",
+button: "P",
+inputs: ["236", "2365"],
+window: 14,
+meterReq: 0,
+airState: false,
+charge: 0,
+buttonCharge: 0
+},
+{
+name: "overheadChop",
+button: "P",
+inputs: ["236", "2365"],
+window: 1,
+meterReq: 100,
+airState: false,
+charge: 0,
+buttonCharge: 0
+},
+]
+
+this.spriteInfo={
+walkForward: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 275,
+y: 0
+},
+}, 
+walkBack: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 275,
+y: 0
+},
+}, 
+neutralJump: {
+total: 40,
+loop: true,
+hold: null,
+offset: {
+x: 275,
+y: 0
+},
+}, 
+forwardJump: {
+total: 40,
+loop: true,
+hold: null,
+offset: {
+x: 275,
+y: 0
+},
+}, 
+backJump: {
+total: 40,
+loop: true,
+hold: null,
+offset: {
+x: 275,
+y: 0
+},
+}, 
+crouch: {
+total: 22,
+loop: true,
+hold: 7,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+standLightPunch: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+jumpLightPunch: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+crouchLightPunch: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+standMediumPunch: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+standHeavyPunch: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+crouchMediumPunch: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+crouchHeavyPunch: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+jumpMediumPunch: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+jumpHeavyPunch: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+standLightKick: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+jumpLightKick: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+crouchLightKick: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+standMediumKick: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+standHeavyKick: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+crouchMediumKick: {
+total: 28,
+loop: true,
+hold: null,
+offset: {
+x: 249,
+y: 0
+},
+}, 
+crouchHeavyKick: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+jumpMediumKick: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+jumpHeavyKick: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+forwardDash: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+backDash: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+DemonFlip: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+Hadoken: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+},
+idle: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+hitstun: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+blockstun: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+airstun: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+crumple: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+hardKnockdown: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+trip: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}, 
+spike: {
+total: 22,
+loop: true,
+hold: null,
+offset: {
+x: 0,
+y: 0
+},
+}
+}
+
+this.pushBox=new pushBox({
+fighter: this, 
+offset: {x: -this.width/2, y: 0}, 
+color: this.color, 
+width: 0, 
+height: 0, 
+prop: null, 
+logic: null})
+
+//MOVE DETAILS END
+
+//BASIC STATES HERE
+this.basicState=
+{
+idle:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.originalWidth,
+height: this.originalHeight,
+active: true,
+velocity: {
+x: 0,
+y: 0
+},
+color: "red",
+transitions: ["walkForward", "walkBack", "neutralJump", "forwardJump", "backJump", "crouch", "standLightPunch", "hitstun", "forwardDash", "backDash"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 0
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 250/3
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 500/3
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+this.targetBox=[hBox1, hBox2, hBox3]
+
+}
+},
+walkForward:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.originalWidth,
+height: this.originalHeight,
+active: false,
+velocity:{
+x: 10,
+y: 0
+},
+color: "blue",
+transitions: ["idle", "walkBack", "neutralJump", "forwardJump", "crouch", "standLightPunch", "hitstun", "forwardDash"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 0
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 420/3
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -65,
+y: 840/3
+},
+width: 130,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+this.targetBox=[hBox1, hBox2, hBox3]
+
+
+}
+},
+walkBack:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.originalWidth,
+height: this.originalHeight,
+active: false,
+velocity:{
+x: -10,
+y: 0
+},
+color: "green",
+transitions: ["idle", "walkForward", "neutralJump", "backJump", "crouch", "standLightPunch", "hitstun", "blockstun", "backDash", "hitstun", "trip", "hardKnockdown"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 0
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 420/3
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -65,
+y: 840/3
+},
+width: 130,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+this.targetBox=[hBox1, hBox2, hBox3]
+
+
+}
+},
+neutralJump:{
+position: this.position,
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.width,
+height: this.originalHeight/2,
+active: false,
+velocity: {
+x: 0,
+y: -39.1
+},
+color: "yellow",
+transitions: ["neutralFall", "idle", "jumpLand", "jumpLightPunch", "airstun", "spike"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 0
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 250/3
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 500/3
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+this.targetBox=[hBox1, hBox2, hBox3]
+
+this.framesCurrent++
+this.jumpLogic()
+
+}
+},
+forwardJump:{
+position: this.position,
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.width,
+height: this.originalHeight/2,
+active: false,
+velocity: {
+x: 10.694,
+y: -39.1
+},
+color: "purple",
+transitions: ["idle", "jumpLand", "jumpLightPunch", "airstun", "spike"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 0
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 250/3
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 500/3
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+this.targetBox=[hBox1, hBox2, hBox3]
+
+
+
+this.framesCurrent++
+this.jumpLogic()
+}
+},
+backJump:{
+position: this.position,
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.width,
+height: this.originalHeight/2,
+active: false,
+velocity: {
+x: -10.694,
+y: -39.1
+},
+color: "cyan",
+transitions: ["neutralFall", "idle", "jumpLand", "jumpLightPunch", "airstun", "spike"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 0
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 250/3
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 500/3
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+this.targetBox=[hBox1, hBox2, hBox3]
+
+this.framesCurrent++
+this.jumpLogic()
+
+}
+},
+forwardDash:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.originalWidth,
+height: this.originalHeight,
+active: false,
+velocity:{
+x: 30,
+y: 0
+},
+color: "orange",
+transitions: ["idle", "crouch", "hitsun", "hardKnockdown", "crumple"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 0
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 420/3
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -65,
+y: 840/3
+},
+width: 130,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+this.targetBox=[hBox1, hBox2, hBox3]
+this.stunned=true
+this.velocity.x+=this.direction*-1*(590/169)
+if(this.framesCurrent>=11){
+
+}
+if(this.direction==1 && this.velocity.x<=0){
+this.stunned=false
+this.switchState("idle")
+}
+else if(this.direction==-1 && this.velocity.x>=0){
+this.stunned=false
+this.switchState("idle")
+}
+
+//LOGIC END
+}
+},
+
+backDash:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.originalWidth,
+height: this.originalHeight,
+active: false,
+velocity:{
+x: -30,
+y: 0
+},
+color: "orange",
+transitions: ["idle", "crouch", "hitsun", "hardKnockdown", "crumple"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 0
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 420/3
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -65,
+y: 840/3
+},
+width: 130,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+this.targetBox=[hBox1, hBox2, hBox3]
+this.stunned=true
+this.framesCurrent++
+this.velocity.x+=this.direction*1*(590/169)
+if(this.framesCurrent>=11){
+
+}
+if(this.direction==1 && this.velocity.x>=0){
+this.stunned=false
+this.switchState("idle")
+}
+else if(this.direction==-1 && this.velocity.x<=0){
+this.stunned=false
+this.switchState("idle")
+}
+
+//LOGIC END
+}
+},
+crouch:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.width,
+height: this.originalHeight/1.5,
+active: false,
+velocity: {
+x: 0,
+y: 0
+},
+color: "black",
+transitions: ["idle", "walkForward", "walkBack", "crouchLightPunch", "hitstun", "blockstun", "trip", "hardKnockdown"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 0
+},
+width: 170,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 0
+},
+width: 170,
+height: 500/3+65,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -30,
+y: (500/3)+50
+},
+width: 130,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+this.targetBox=[hBox1, hBox2, hBox3]
+
+
+
+}
+},
+standLightPunch:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.originalWidth,
+height: this.originalHeight,
+active: false,
+velocity: {
+x: 0,
+y: 0
+},
+color: this.color,
+transitions: ["idle", "hitstun"],
+//FRAME LOGIC HERE
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 0
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -75,
+y: 420/3
+},
+width: 150,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -65,
+y: 840/3
+},
+width: 130,
+height: 420/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox4=new hurtBox({
+fighter:this,
+offset: {
+x: 35,
+y: 300
+},
+width: 0,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+
+if(this.attack==true && this.framesCurrent<=hitBox.startup){
+this.targetBox[3].width+=140/hitBox.startup
+}
+}
+
+})
+if(this.framesCurrent==0){
+this.targetBox=[hBox1, hBox2, hBox3, hBox4]
+}
+
+
+
+
+//HITBOX PROPERTIES
+const hitBox= new hitbox({
+fighter: this,
+offset: {
+x: 35,
+y: 300
+},
+width: 140,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+currentColor: "pink",
+startup: 4,
+active: 3,
+recovery: 5,
+stun: 20,
+damage: 100,
+pushback: 40,
+hitstop: 10,
+prop: "hit",
+type: "high",
+air: false,
+connected: false,
+activation: 0,
+logic: null
+})
+
+this.attack=true
+if(this.framesCurrent==0){this.attackBox=[hitBox]}
+this.framesCurrent++
+this.standardAttackLogic(hitBox)
+if(this.framesCurrent>hitBox.startup && this.framesCurrent<(hitBox.startup+hitBox.active)){
+fake(hitBox);
+
+}
+else if(this.framesCurrent>(hitBox.startup+hitBox.active) && this.framesCurrent>(hitBox.startup+hitBox.active+hitBox.recovery)){
+//FILLER. FILL THIS LATER
+}
+if(this.framesCurrent>(hitBox.startup+hitBox.active+hitBox.recovery)){
+this.attack=false;
+this.switchState("idle");
+}
+}
+},
+jumpLightPunch: {
+position: this.position,
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.width,
+height: this.height,
+active: false,
+velocity: this.velocity,
+color: "orange",
+transitions: ["idle", "airstun", "spike"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 0
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 250/3
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 500/3
+},
+width: 100,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox4=new hurtBox({
+fighter:this,
+offset: {
+x: 35,
+y: 100
+},
+width: 0,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+
+if(this.attack==true && this.framesCurrent<=jumpBox.startup){
+this.targetBox[3].width+=140/jumpBox.startup
+}
+}
+
+})
+if(this.framesCurrent==0){
+this.targetBox=[hBox1, hBox2, hBox3, hBox4]
+}
+
+
+
+
+
+//JUMPBOX PROPERTIES
+const jumpBox= new hitbox({
+fighter: this,
+offset: {
+x: 35,
+y: 100
+},
+width: 140,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+currentColor: "pink",
+startup: 10,
+active: 30,
+recovery: 8,
+stun: 30,
+damage: 150,
+pushback: 20,
+hitstop: 10,
+prop: "spike",
+type: "overhead",
+air: true,
+connected: false,
+activation: 0,
+logic: null
+})
+
+//JUMP HANDLING
+
+this.velocity.y+=2.17
+this.jumped=true
+this.attack=true
+
+if(this.pushBox.realPos.y+2.17>=ground){
+this.pushBox.realPos.y=ground
+this.jumped=false
+this.framesCurrent=0;
+this.attack=false;
+this.switchState("idle");
+}
+//JUMP HANDLING END
+//ATTACK HANDLING
+if(this.framesCurrent==0){this.attackBox=[jumpBox]}
+this.framesCurrent++
+this.standardAttackLogic(jumpBox)
+if(this.framesCurrent>jumpBox.startup && this.framesCurrent<(jumpBox.startup+jumpBox.active)){
+fake(jumpBox);
+
+}
+else if(this.framesCurrent>(jumpBox.startup+jumpBox.active) && this.framesCurrent>(jumpBox.startup+jumpBox.active+jumpBox.recovery)){
+//FILLER. FILL THIS LATER
+}
+if(this.framesCurrent>(jumpBox.startup+jumpBox.active+jumpBox.recovery)){
+this.attack=false;
+}
+//ATTACK HANDLING END
+}
+},
+crouchLightPunch:{
+position:{
+x: this.position.x,
+y: ground
+},
+pushOff:{
+x: -1*this.width/2,
+y: 0
+},
+width: this.width,
+height: this.originalHeight/2,
+active: false,
+velocity: {
+x: this.velocity.x,
+y: this.velocity.y
+},
+color: "white",
+transitions: ["crouch", "hitstun"],
+conditional: "none",
+logic: ()=>{
+//HURTBOXES HERE
+const hBox1=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 0
+},
+width: 170,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox2=new hurtBox({
+fighter:this,
+offset: {
+x: -50,
+y: 0
+},
+width: 170,
+height: 500/3+65,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox3=new hurtBox({
+fighter:this,
+offset: {
+x: -30,
+y: (500/3)+50
+},
+width: 130,
+height: 250/3,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: null
+
+})
+
+const hBox4=new hurtBox({
+fighter:this,
+offset: {
+x: 35,
+y: 0
+},
+width: 0,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+prop: null,
+activation: [0],
+logic: ()=>{
+
+if(this.attack==true && this.framesCurrent<=crouchBox.startup){
+this.targetBox[3].width+=140/crouchBox.startup
+}
+}
+
+})
+if(this.framesCurrent==0){
+this.targetBox=[hBox1, hBox2, hBox3, hBox4]
+}
+
+
+
+
+
+//CROUCHBOX PROPERTIES HERE
+const crouchBox= new hitbox ({
+fighter: this,
+offset: {
+x: 35,
+y: 0
+},
+width: 140,
+height: 50,
+velocity: {
+x: 0,
+y: 0
+},
+currentColor: "pink",
+startup: 10,
+active: 30,
+recovery: 8,
+stun: 15,
+damage: 70,
+pushback: 10,
+hitstop: 10,
+prop: "hit",
+type: "low",
+air: false,
+connected: false,
+activation: 0,
+logic: null
+})
+
+//ATTACK HANDLING
+this.attack=true
+if(this.framesCurrent==0){this.attackBox=[crouchBox]}
+this.framesCurrent++
+this.standardAttackLogic(crouchBox)
+if(this.framesCurrent>crouchBox.startup && this.framesCurrent<(crouchBox.startup+crouchBox.active)){
+fake(crouchBox);
+
+}
+else if(this.framesCurrent>(crouchBox.startup+crouchBox.active) && this.framesCurrent>(crouchBox.startup+crouchBox.active+crouchBox.recovery)){
+//FILLER. FILL THIS LATER
+}
+if(this.framesCurrent>(crouchBox.startup+crouchBox.active+crouchBox.recovery)){
+this.framesCurrent=0;
+this.attack=false;
+this.switchState("crouch");
+}
+}
+},
+
+
+
+
+}
+//BASIC STATES END
+this.attackBox=attackBox
+this.attackState=attackState;
+this.hitState=hitState;
+this.deathState=deathState;
+}
+}
+//EFFECT INITIALIZATION
+//HITSPARK HERE
+let hitspark=new Effect({
+position:{
+x: 0,
+y: 0
+}, 
+sprite: "Hit-Yellow", 
+scale: 1, 
+spriteLength: 16, 
+offset:{
+x: 0,
+y: 0
+}, 
+direction: 1, 
+grid:{
+x: 4, 
+y: 4
+}
+})
+
+//HITSPARK END
+
+
+let effects=[];
+//EFFECT END HERE
+
+
+
+//AKUMA INITIALIZATION HERE
+let akuma=new Gouki({
+position:{
+x: 200, 
+y: ground
+},
+originalPosition:{
+x: 200,
+y: ground
+}, 
+width: 100, 
+height: 250,
+velocity:{
+x: 0,
+y: 0
+},
+direction:1,
+maxHealth: 900,
+stunFrames: {
+count: 0,
+push: 0
+},
+basicState: "idle", 
+attackState: "neutral", 
+hitState: "safe", 
+deathState: "alive"
+})
+
+
+//KEN INITIALIZATION
+let ken=new Gouki({
+position:{
+x: 500, 
+y: ground
+},
+originalPosition:{
+x: 500,
+y: ground
+}, 
+width: 100, 
+height: 250,
+velocity:{
+x: 0,
+y: 0
+},
+direction:-1,
+maxHealth: 1000,
+stunFrames: {
+count: 0,
+push: 15
+},
+basicState: "idle", 
+attackState: "neutral", 
+hitState: "safe", 
+deathState: "alive"
+})
+
+
+
+
+window.addEventListener("load", ()=>{
+const key={}
+const attReg={
+j: false,
+c: false,
+i: false,
+k: false,
+l: false,
+z: false,
+x: false,
+v: false,
+b: false,
+n: false,
+u: false,
+o: false,
+}
+const att={}
+window.addEventListener("keydown", (event)=>{
+key[event.key.toLowerCase()]=true;
+att[event.key.toLowerCase()]=true
+if(event.repeat){
+att[event.key.toLowerCase()];
+}
+});
+
+window.addEventListener("keyup", (event)=>{
+key[event.key.toLowerCase()]=false;
+att[event.key.toLowerCase()]=false;
+attReg[event.key.toLowerCase()]=false
+});
+
+let direction=null;
+
+function updateDirection(){
+let up=key['w'];
+let down=key['s'];
+let right=key['d'];
+let left=key['a']
+let tup=key['arrowup']
+let tdown=key['arrowdown']
+let tleft=key['arrowleft']
+let tright=key['arrowright']
+
+pendingInput1={frameCount: 1, direction: null, button: []}
+pendingInput2={frameCount: 1, direction: null, button: []}
+if(up && right) {
+pendingInput1.direction=9
+if(akuma.direction==1){
+akuma.switchState('forwardJump')
+}
+else{
+akuma.switchState('backJump')
+}
+}
+else if(up && left) {
+pendingInput1.direction=7
+if(akuma.direction==-1){
+akuma.switchState('forwardJump')
+}
+else{
+akuma.switchState('backJump')
+}
+}
+else if(down && right) {
+pendingInput1.direction=3
+if(akuma.jumped==false && akuma.attack==false && akuma.stunned==false){
+akuma.switchState('crouch')}
+}
+else if(down && left){
+pendingInput1.direction=1
+if(akuma.jumped==false && akuma.attack==false && akuma.stunned==false){
+akuma.switchState('crouch')}
+}
+else if(up) {
+pendingInput1.direction=8
+akuma.switchState('neutralJump')
+}
+else if(down){
+pendingInput1.direction=2
+if(akuma.jumped==false && akuma.attack==false && akuma.stunned==false){
+akuma.switchState('crouch')}
+
+}
+else if(left) {
+pendingInput1.direction=4
+if(akuma.direction==1){
+akuma.switchState('walkBack')
+}
+else{
+akuma.switchState('walkForward')
+}
+}
+else if(right) {
+pendingInput1.direction=6
+if(akuma.direction==-1){
+akuma.switchState('walkBack')
+}
+else{
+akuma.switchState('walkForward')
+}
+}
+
+else {
+pendingInput1.direction=5
+if(akuma.jumped==false && akuma.attack==false && akuma.stunned==false){
+akuma.switchState('idle')}}
+
+if(tup && tright) {
+pendingInput2.direction=9
+if(ken.direction==1){
+ken.switchState('forwardJump')
+}
+else{
+ken.switchState('backJump')
+}
+}
+else if(tup && tleft) {
+pendingInput2.direction=7
+if(ken.direction==-1){
+ken.switchState('forwardJump')
+}
+else{
+ken.switchState('backJump')
+}
+}
+else if(tdown && tright) {
+pendingInput2.direction=3
+if(ken.jumped==false && ken.attack==false && ken.stunned==false){
+ken.switchState('crouch')
+}
+}
+else if(tdown && tleft){
+pendingInput2.direction=1
+if(ken.jumped==false && ken.attack==false && ken.stunned==false){
+ken.switchState('crouch')
+}
+}
+else if(tup) {
+pendingInput2.direction=8
+ken.switchState('neutralJump')
+}
+else if(tdown){
+pendingInput2.direction=2
+if(ken.jumped==false && ken.attack==false && ken.stunned==false){
+ken.switchState('crouch')
+}
+}
+else if(tleft) {
+pendingInput2.direction=4
+if(ken.direction==1){
+ken.switchState('walkBack')
+}
+else{
+ken.switchState('walkForward')
+}
+}
+else if(tright) {
+pendingInput2.direction=6
+if(ken.direction==-1){
+ken.switchState('walkBack')
+}
+else{
+ken.switchState('walkForward')
+}
+}
+else {
+pendingInput2.direction=5
+if(ken.jumped==false && ken.attack==false && ken.stunned==false){
+ken.switchState('idle')}}
+
+//ATTACK HANDLER
+let punch=att['j'];
+let tpunch=att['c'];
+let mPunch=att['i'];
+let hPunch=att['u'];
+let lKick=att['k']
+let mKick=att['l']
+let hKick=att['o']
+let mtPunch=att['x'];
+let htPunch=att['z'];
+let ltKick=att['v']
+let mtKick=att['b']
+let htKick=att['n']
+let conf=0
+//LIGHT NORMALS
+if(punch){
+if(attReg['j']==false){
+pendingInput1.button.push({name: "LP", held: false})
+}
+else{
+let location=history1[history1.length-1].button.findIndex(function(a){return (a.name=="LP")})
+history1[history1.length-1].button[location].held=true
+pendingInput1.button.push({name: "LP", held: true})
+}
+attReg['j']=true
+}
+if(tpunch){
+if(attReg['c']==false){
+pendingInput2.button.push({name: "LP", held: false})
+}
+
+else{
+let location=history2[history2.length-1].button.findIndex(function(a){return (a.name=="LP")})
+history2[history2.length-1].button[location].held=true
+pendingInput2.button.push({name: "LP", held: true})
+}
+
+attReg['c']=true
+}
+
+//KICKS
+if(lKick){
+if(attReg['k']==false){
+pendingInput1.button.push({name: "LK", held: false})
+}
+else{
+let location=history1[history1.length-1].button.findIndex(function(a){return (a.name=="LK")})
+history1[history1.length-1].button[location].held=true
+pendingInput1.button.push({name: "LK", held: true})
+}
+attReg['k']=true
+}
+if(ltKick){
+if(attReg['v']==false){
+pendingInput2.button.push({name: "LK", held: false})
+}
+
+else{
+let location=history2[history2.length-1].button.findIndex(function(a){return (a.name=="LK")})
+history2[history2.length-1].button[location].held=true
+pendingInput2.button.push({name: "LK", held: true})
+}
+
+attReg['v']=true
+}
+
+//MEDIUM NORMALS
+if(mPunch){
+
+if(attReg['i']==false){
+pendingInput1.button.push({name: "MP", held: false})
+}
+
+else{
+let location=history1[history1.length-1].button.findIndex(function(a){return (a.name=="MP")})
+history1[history1.length-1].button[location].held=true
+pendingInput1.button.push({name: "MP", held: true})
+}
+
+attReg['i']=true
+}
+if(mtPunch){
+
+if(attReg['x']==false){
+pendingInput2.button.push({name: "MP", held: false})
+}
+
+else{
+let location=history2[history2.length-1].button.findIndex(function(a){return (a.name=="MP")})
+history2[history2.length-1].button[location].held=true
+pendingInput2.button.push({name: "MP", held: true})
+}
+
+attReg['x']=true
+}
+//KICKS
+
+if(mKick){
+
+if(attReg['l']==false){
+pendingInput1.button.push({name: "MK", held: false})
+}
+
+else{
+let location=history1[history1.length-1].button.findIndex(function(a){return (a.name=="MK")})
+history1[history1.length-1].button[location].held=true
+pendingInput1.button.push({name: "MK", held: true})
+}
+
+attReg['l']=true
+}
+if(mtKick){
+
+if(attReg['b']==false){
+pendingInput2.button.push({name: "MK", held: false})
+}
+
+else{
+let location=history2[history2.length-1].button.findIndex(function(a){return (a.name=="MK")})
+history2[history2.length-1].button[location].held=true
+pendingInput2.button.push({name: "MK", held: true})
+}
+
+attReg['b']=true
+}
+
+//HEAVY NORMALS
+if(hPunch){
+if(attReg['u']==false){
+pendingInput1.button.push({name: "HP", held: false})
+}
+
+else{
+let location=history1[history1.length-1].button.findIndex(function(a){return (a.name=="HP")})
+history1[history1.length-1].button[location].held=true
+pendingInput1.button.push({name: "HP", held: true})
+}
+
+attReg['u']=true
+}
+if(htPunch){
+
+if(attReg['z']==false){
+pendingInput2.button.push({name: "HP", held: false})
+}
+
+else{
+let location=history2[history2.length-1].button.findIndex(function(a){return (a.name=="HP")})
+history2[history2.length-1].button[location].held=true
+pendingInput2.button.push({name: "HP", held: true})
+}
+
+attReg['z']=true
+}
+//KICKS
+if(hKick){
+if(attReg['o']==false){
+pendingInput1.button.push({name: "HK", held: false})
+}
+
+else{
+let location=history1[history1.length-1].button.findIndex(function(a){return (a.name=="HK")})
+history1[history1.length-1].button[location].held=true
+pendingInput1.button.push({name: "HK", held: true})
+}
+
+attReg['o']=true
+}
+if(htKick){
+
+if(attReg['n']==false){
+pendingInput2.button.push({name: "HK", held: false})
+}
+
+else{
+let location=history2[history2.length-1].button.findIndex(function(a){return (a.name=="HK")})
+history2[history2.length-1].button[location].held=true
+pendingInput2.button.push({name: "HK", held: true})
+}
+
+attReg['n']=true
+}
+
+let last=history1.length-1
+let last2=history2.length-1
+let oldIn={direction: history1[last].direction, button: history1[last].button}
+let newIn={direction: pendingInput1.direction, button: pendingInput1.button}
+let oldIn2={direction: history2[last2].direction, button: history2[last2].button}
+let newIn2={direction: pendingInput2.direction, button: pendingInput2.button}
+
+//UPDATING HISTORY
+if(JSON.stringify(oldIn) == JSON.stringify(newIn)){
+history1[last].frameCount+=1
+}
+else{
+history1.push(pendingInput1)
+}
+if(pendingInput1.button.length>0){
+
+}
+if(JSON.stringify(oldIn2) == JSON.stringify(newIn2)){
+history2[history2.length-1].frameCount+=1
+}
+else{
+history2.push(pendingInput2)
+}
+
+akuma.inputTranslator(history1)
+ken.inputTranslator(history2)
+}
+let test=[23, "Michael", {name: {name: "LP", held: false}, held: false}]
+let test2=[23, "Michael", {name: {name: "LP", held: false}, held: false}]
+
+//FRAME COUNTER START
+var frameCount=0
+let interval=setInterval(()=>{
+//document.getElementById("fps").innerText="FPS: "+frameCount
+frameCount=0
+}, 1000)
+//FRAME COUNTER END
+
+
+var history1=[{frameCount: 1, direction: 5, button: []}]
+var history2=[{frameCount: 1, direction: 5, button: []}]
+akuma.position.x=1200
+ken.position.x=1800
+const back=new Image()
+back.src="upscaled-sfiii-3s-ken-1080.png"
+
+
+function animate(){
+window.requestAnimationFrame(animate);
+frameCount++
+
+
+
+updateDirection();
+let newLast=history1.length-1
+if(history1[newLast].button.length>0){
+}
+
+
+akuma.update();
+ken.update();
+//DIRECTION SWITCH
+if((akuma.position.x+akuma.width/2) > (ken.position.x+ken.width/2)){
+if(akuma.direction==1){
+akuma.switchSide()
+}
+if(ken.direction==-1){
+ken.switchSide()
+}
+}
+
+else if((akuma.position.x+akuma.width/2) < (ken.position.x+ken.width/2)){
+if(akuma.direction==-1){
+akuma.switchSide()
+}
+if(ken.direction==1){
+ken.switchSide()
+
+}
+}
+//DIRECTION SWITCH END
+
+//PUSH HANDLING START
+pushHandler(akuma, ken)
+//PUSH HANDLING END
+
+//ATTACK HANDLER START
+if(ken.attack==true || akuma.attack==true || ken.projectiles.length>0 || akuma.projectiles.length>0){
+attackCollision(akuma, ken)
+}
+if(maxHitstop>hitstopCount && maxHitstop>0){
+hitstopCount++
+akuma.hitStopped=true
+ken.hitStopped=true
+}
+else{
+hitstopCount=0
+maxHitstop=0
+akuma.hitStopped=false
+ken.hitStopped=false
+}
+
+//ATTACK HANDLER END
+
+//Wall Pushback
+if((akuma.atWall==true && akuma.currentState=="hitstun" || akuma.atWall==true && akuma.currentState=="blockstun" || akuma.atWall==true && akuma.currentState=="airstun") && akuma.framesCurrent<3 && akuma.hitStopped==false  && ken.hitStopped==false){
+ken.position.x+=-1*(akuma.stunFrames.push/3)
+}
+
+else if((ken.atWall==true && ken.currentState=="hitstun" || ken.atWall==true && ken.currentState=="blockstun" || ken.atWall==true && ken.currentState=="airstun") && ken.framesCurrent<3  && akuma.hitStopped==false && ken.hitStopped==false){
+akuma.position.x+=-1*(ken.stunFrames.push/3)
+}
+akuma.originalPosition=akuma.pushBox.realPos
+ken.originalPosition=ken.pushBox.realPos
+//Wall Pushback End
+
+//ZOOM HANDLING
+const zoomStartDist=700
+const zoomMaxDist=900
+const minZoom=1.5
+const maxZoom=1.1
+
+let distance=Math.abs(akuma.position.x-ken.position.x)
+
+let targetZoom=minZoom
+if(distance>zoomStartDist){
+let t=(distance-zoomStartDist)/(zoomMaxDist-zoomStartDist)
+t=Math.min(Math.max(t, 0), 1)
+targetZoom=minZoom-(minZoom-maxZoom) *t
+}
+
+camera.zoom += (targetZoom-camera.zoom) * 0.1
+
+//ZOOM HANDLING END
+
+
+
+let viewWidth=screenWidth/camera.zoom
+const deadZoneWidth=viewWidth*0.6
+let leftPlayer=Math.min(akuma.pushBox.realPos.x+(akuma.pushBox.width/2), ken.pushBox.realPos.x+(ken.pushBox.width/2))
+let rightPlayer=Math.max(akuma.pushBox.realPos.x+(akuma.pushBox.width/2), ken.pushBox.realPos.x+(ken.pushBox.width/2))
+let gCenter=(leftPlayer+ rightPlayer)/2
+let gWidth=rightPlayer-leftPlayer
+let camLeft=camera.x
+let camRight=camera.x+screenWidth
+
+let deadZoneLeft=camera.x+(viewWidth-deadZoneWidth)/2
+let deadZoneRight=deadZoneLeft+deadZoneWidth
+
+if(leftPlayer<deadZoneLeft || rightPlayer>deadZoneRight){
+
+if(gWidth>deadZoneWidth){
+let newCenter=gCenter
+let targetX=newCenter-viewWidth/2
+camera.x+=(targetX-camera.x)*1
+}
+else{
+if(leftPlayer<deadZoneLeft){
+camera.x-=deadZoneLeft-leftPlayer
+}
+
+if(rightPlayer> deadZoneRight){camera.x+=rightPlayer - deadZoneRight}
+
+
+}
+
+}
+camera.y=gameHeight-screenHeight/camera.zoom
+
+let baseCameraY=ground-canvas.height*0.75
+let verticalDeadzoneTop=camera.y+canvas.height*0.25
+let highest=Math.min(akuma.pushBox.top, ken.pushBox.top)
+//console.log(highest+" vs "+verticalDeadzoneTop)
+if(highest<verticalDeadzoneTop){
+camera.y-=(verticalDeadzoneTop-highest)
+}
+
+camera.x=clamp(camera.x, 0, gameWidth-viewWidth)
+context.save()
+context.setTransform(
+camera.zoom,
+0,
+0,
+camera.zoom,
+-camera.x*camera.zoom,
+-camera.y*camera.zoom
+)
+
+if(maxHitstop==0){
+context.fillStyle='gray';
+}
+else{
+context.fillStyle='rgba(58, 58, 58, 1)';
+}
+context.fillRect(0, 0, screenWidth, screenHeight);
+context.drawImage(back, 0, 0, back.width, back.height, 0, 0, 3000, 1600)
+
+
+akuma.draw()
+ken.draw()
+if(effects.length>0){
+console.log(effects[0].sprites)
+for(let k=0; k<effects.length; k++){
+effects[k].draw()
+}
+}
+context.restore()
+}
+
+async function startGame(){
+await Promise.all([
+akuma.loadAnimations(),
+ken.loadAnimations(),
+hitspark.loadAnimations()
+])
+animate();
+}
+
+startGame()
+})
+</script>
+</html>
